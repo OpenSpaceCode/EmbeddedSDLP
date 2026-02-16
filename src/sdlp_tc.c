@@ -46,7 +46,7 @@ int sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame, uint8_t *buffer,
                        ((frame->header.reserved & 0x03) << 2) |
                        ((frame->header.spacecraft_id >> 8) & 0x03);
     buffer[offset++] = frame->header.spacecraft_id & 0xFF;
-    buffer[offset++] = (frame->header.virtual_channel_id & 0x3F) << 2;
+    buffer[offset++] = ((frame->header.virtual_channel_id & 0x3F) << 2) | 0x00;
     buffer[offset++] = (frame->header.frame_length >> 8) & 0xFF;
     buffer[offset++] = frame->header.frame_length & 0xFF;
     

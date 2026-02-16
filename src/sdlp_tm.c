@@ -1,6 +1,7 @@
 #include "sdlp_tm.h"
 #include <string.h>
 
+/* Note: not thread-safe, caller must ensure sequential access */
 static uint8_t tm_frame_counter = 0;
 
 int sdlp_tm_create_frame(sdlp_tm_frame_t *frame, uint16_t spacecraft_id, 

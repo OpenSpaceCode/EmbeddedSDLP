@@ -17,7 +17,7 @@ int sdlp_tc_create_frame(sdlp_tc_frame_t *frame, uint16_t spacecraft_id,
     frame->header.spacecraft_id = spacecraft_id & 0x3FF;
     frame->header.virtual_channel_id = virtual_channel_id & 0x3F;
     frame->header.reserved2 = 0;
-    frame->header.frame_length = data_length + TC_PRIMARY_HEADER_SIZE - 1;
+    frame->header.frame_length = data_length - 1;
     frame->header.frame_sequence_number = frame_seq_num;
     
     memcpy(frame->data, data, data_length);

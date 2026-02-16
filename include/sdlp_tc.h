@@ -16,7 +16,7 @@ typedef struct {
     uint8_t virtual_channel_id : 6;
     uint8_t reserved2 : 2;
     uint16_t frame_length : 10;
-    uint16_t frame_sequence_number : 8;
+    uint8_t frame_sequence_number;
 } sdlp_tc_header_t;
 
 typedef struct {

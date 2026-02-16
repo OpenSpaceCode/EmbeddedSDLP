@@ -20,7 +20,6 @@ int sdlp_tm_create_frame(sdlp_tm_frame_t *frame, uint16_t spacecraft_id,
     frame->header.master_channel_frame_count = tm_frame_counter++;
     frame->header.virtual_channel_frame_count = 0;
     frame->header.transfer_frame_data_field_status = 0;
-    frame->header.first_header_pointer = 0;
     
     memcpy(frame->data, data, data_length);
     frame->data_length = data_length;
@@ -51,8 +50,7 @@ int sdlp_tm_encode_frame(const sdlp_tm_frame_t *frame, uint8_t *buffer,
     buffer[offset++] = frame->header.master_channel_frame_count;
     buffer[offset++] = frame->header.virtual_channel_frame_count;
     
-    uint16_t data_field_status = (frame->header.transfer_frame_data_field_status << 14) |
-                                 (frame->header.first_header_pointer & 0x7FF);
+    uint16_t data_field_status = (frame->header.transfer_frame_data_field_status << 14);
     buffer[offset++] = (data_field_status >> 8) & 0xFF;
     buffer[offset++] = data_field_status & 0xFF;
     
@@ -91,7 +89,6 @@ int sdlp_tm_decode_frame(const uint8_t *buffer, size_t buffer_size,
     
     uint16_t data_field_status = (buffer[offset] << 8) | buffer[offset + 1];
     frame->header.transfer_frame_data_field_status = (data_field_status >> 14) & 0x03;
-    frame->header.first_header_pointer = data_field_status & 0x7FF;
     offset += 2;
     
     frame->data_length = buffer_size - TM_PRIMARY_HEADER_SIZE - TM_FRAME_ERROR_CONTROL_SIZE;

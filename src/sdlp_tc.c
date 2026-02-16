@@ -16,7 +16,6 @@ int sdlp_tc_create_frame(sdlp_tc_frame_t *frame, uint16_t spacecraft_id,
     frame->header.reserved = 0;
     frame->header.spacecraft_id = spacecraft_id & 0x3FF;
     frame->header.virtual_channel_id = virtual_channel_id & 0x3F;
-    frame->header.reserved2 = 0;
     frame->header.frame_length = data_length - 1;
     frame->header.frame_sequence_number = frame_seq_num;
     
@@ -47,8 +46,7 @@ int sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame, uint8_t *buffer,
                        ((frame->header.reserved & 0x03) << 2) |
                        ((frame->header.spacecraft_id >> 8) & 0x03);
     buffer[offset++] = frame->header.spacecraft_id & 0xFF;
-    buffer[offset++] = ((frame->header.virtual_channel_id & 0x3F) << 2) | 
-                       (frame->header.reserved2 & 0x03);
+    buffer[offset++] = (frame->header.virtual_channel_id & 0x3F) << 2;
     buffer[offset++] = (frame->header.frame_length >> 8) & 0xFF;
     buffer[offset++] = frame->header.frame_length & 0xFF;
     
@@ -82,7 +80,6 @@ int sdlp_tc_decode_frame(const uint8_t *buffer, size_t buffer_size,
     offset += 2;
     
     frame->header.virtual_channel_id = (buffer[offset] >> 2) & 0x3F;
-    frame->header.reserved2 = buffer[offset] & 0x03;
     offset++;
     
     frame->header.frame_length = (buffer[offset] << 8) | buffer[offset + 1];

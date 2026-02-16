@@ -50,7 +50,7 @@ int sdlp_tm_encode_frame(const sdlp_tm_frame_t *frame, uint8_t *buffer,
     buffer[offset++] = frame->header.master_channel_frame_count;
     buffer[offset++] = frame->header.virtual_channel_frame_count;
     
-    uint16_t data_field_status = ((frame->header.transfer_frame_data_field_status & 0x03) << 14);
+    uint16_t data_field_status = frame->header.transfer_frame_data_field_status;
     buffer[offset++] = (data_field_status >> 8) & 0xFF;
     buffer[offset++] = data_field_status & 0xFF;
     
@@ -88,7 +88,7 @@ int sdlp_tm_decode_frame(const uint8_t *buffer, size_t buffer_size,
     frame->header.virtual_channel_frame_count = buffer[offset++];
     
     uint16_t data_field_status = (buffer[offset] << 8) | buffer[offset + 1];
-    frame->header.transfer_frame_data_field_status = (data_field_status >> 14) & 0x03;
+    frame->header.transfer_frame_data_field_status = data_field_status;
     offset += 2;
     
     frame->data_length = buffer_size - TM_PRIMARY_HEADER_SIZE - TM_FRAME_ERROR_CONTROL_SIZE;

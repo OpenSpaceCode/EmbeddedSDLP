@@ -14,7 +14,7 @@ typedef struct {
     uint16_t ocf_flag : 1;
     uint8_t master_channel_frame_count;
     uint8_t virtual_channel_frame_count;
-    uint16_t transfer_frame_data_field_status : 2;
+    uint16_t transfer_frame_data_field_status;
 } sdlp_tm_header_t;
 
 typedef struct {

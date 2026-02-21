@@ -35,7 +35,7 @@ int sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame, uint8_t *buffer,
                            TC_FRAME_ERROR_CONTROL_SIZE;
 
 #ifdef TC_SEGMENT_HEADER_ENABLED
-    if (frame->use_segment_header && !frame->header.control_command_flag) {
+    if (!frame->header.control_command_flag) {
         required_size += TC_SEGMENT_HEADER_SIZE;
     }
 #endif
@@ -57,7 +57,7 @@ int sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame, uint8_t *buffer,
     buffer[offset++] = frame->header.frame_length & 0xFF;
 
 #ifdef TC_SEGMENT_HEADER_ENABLED
-    if (frame->use_segment_header && !frame->header.control_command_flag) {
+    if (!frame->header.control_command_flag) {
         buffer[offset++] = ((frame->segment_header.sequence_flags & 0x03) << 6) |
                            (frame->segment_header.map_id & 0x3F);
     }
@@ -81,14 +81,8 @@ int sdlp_tc_decode_frame(const uint8_t *buffer, size_t buffer_size,
         return SDLP_ERROR_INVALID_PARAM;
     }
     
-#ifdef TC_SEGMENT_HEADER_ENABLED
-    uint8_t saved_use_seg_hdr = frame->use_segment_header;
-#endif
     memset(frame, 0, sizeof(sdlp_tc_frame_t));
-#ifdef TC_SEGMENT_HEADER_ENABLED
-    frame->use_segment_header = saved_use_seg_hdr;
-#endif
-    
+
     size_t offset = 0;
     
     frame->header.transfer_frame_version = (buffer[offset] >> 6) & 0x03;
@@ -105,7 +99,7 @@ int sdlp_tc_decode_frame(const uint8_t *buffer, size_t buffer_size,
     offset += 2;
 
 #ifdef TC_SEGMENT_HEADER_ENABLED
-    if (frame->use_segment_header && !frame->header.control_command_flag) {
+    if (!frame->header.control_command_flag) {
         if (buffer_size < TC_PRIMARY_HEADER_SIZE + TC_SEGMENT_HEADER_SIZE + TC_FRAME_ERROR_CONTROL_SIZE) {
             return SDLP_ERROR_INVALID_FRAME;
         }
@@ -146,7 +140,6 @@ int sdlp_tc_set_segment_header(sdlp_tc_frame_t *frame, uint8_t sequence_flags, u
     }
     frame->segment_header.sequence_flags = sequence_flags & 0x03;
     frame->segment_header.map_id = map_id & 0x3F;
-    frame->use_segment_header = 1;
     return SDLP_SUCCESS;
 }
 #endif

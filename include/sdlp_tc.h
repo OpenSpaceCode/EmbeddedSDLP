@@ -44,7 +44,6 @@ typedef struct {
 typedef struct {
     sdlp_tc_header_t header;
 #ifdef TC_SEGMENT_HEADER_ENABLED
-    uint8_t use_segment_header;           /* non-zero if segment header is present */
     sdlp_tc_segment_header_t segment_header;
 #endif
     uint8_t data[TC_MAX_DATA_SIZE];

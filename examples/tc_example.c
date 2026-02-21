@@ -58,10 +58,6 @@ int main(void) {
     
     printf("\nDecoding frame...\n");
     sdlp_tc_frame_t decoded_frame;
-    memset(&decoded_frame, 0, sizeof(decoded_frame));
-#ifdef TC_SEGMENT_HEADER_ENABLED
-    decoded_frame.use_segment_header = 1;
-#endif
     result = sdlp_tc_decode_frame(buffer, encoded_size, &decoded_frame);
     
     if (result != SDLP_SUCCESS) {

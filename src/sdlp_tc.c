@@ -33,6 +33,12 @@ int sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame, uint8_t *buffer,
     
     size_t required_size = TC_PRIMARY_HEADER_SIZE + frame->data_length + 
                            TC_FRAME_ERROR_CONTROL_SIZE;
+
+#ifdef TC_SEGMENT_HEADER_ENABLED
+    if (frame->use_segment_header && !frame->header.control_command_flag) {
+        required_size += TC_SEGMENT_HEADER_SIZE;
+    }
+#endif
     
     if (buffer_size < required_size) {
         return SDLP_ERROR_BUFFER_TOO_SMALL;
@@ -49,6 +55,13 @@ int sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame, uint8_t *buffer,
     buffer[offset++] = ((frame->header.virtual_channel_id & 0x3F) << 2) | 0x00;
     buffer[offset++] = (frame->header.frame_length >> 8) & 0xFF;
     buffer[offset++] = frame->header.frame_length & 0xFF;
+
+#ifdef TC_SEGMENT_HEADER_ENABLED
+    if (frame->use_segment_header && !frame->header.control_command_flag) {
+        buffer[offset++] = ((frame->segment_header.sequence_flags & 0x03) << 6) |
+                           (frame->segment_header.map_id & 0x3F);
+    }
+#endif
     
     memcpy(&buffer[offset], frame->data, frame->data_length);
     offset += frame->data_length;
@@ -68,7 +81,13 @@ int sdlp_tc_decode_frame(const uint8_t *buffer, size_t buffer_size,
         return SDLP_ERROR_INVALID_PARAM;
     }
     
+#ifdef TC_SEGMENT_HEADER_ENABLED
+    uint8_t saved_use_seg_hdr = frame->use_segment_header;
+#endif
     memset(frame, 0, sizeof(sdlp_tc_frame_t));
+#ifdef TC_SEGMENT_HEADER_ENABLED
+    frame->use_segment_header = saved_use_seg_hdr;
+#endif
     
     size_t offset = 0;
     
@@ -84,8 +103,23 @@ int sdlp_tc_decode_frame(const uint8_t *buffer, size_t buffer_size,
     
     frame->header.frame_length = (buffer[offset] << 8) | buffer[offset + 1];
     offset += 2;
-    
+
+#ifdef TC_SEGMENT_HEADER_ENABLED
+    if (frame->use_segment_header && !frame->header.control_command_flag) {
+        if (buffer_size < TC_PRIMARY_HEADER_SIZE + TC_SEGMENT_HEADER_SIZE + TC_FRAME_ERROR_CONTROL_SIZE) {
+            return SDLP_ERROR_INVALID_FRAME;
+        }
+        frame->segment_header.sequence_flags = (buffer[offset] >> 6) & 0x03;
+        frame->segment_header.map_id = buffer[offset] & 0x3F;
+        offset++;
+        frame->data_length = buffer_size - TC_PRIMARY_HEADER_SIZE - TC_SEGMENT_HEADER_SIZE -
+                             TC_FRAME_ERROR_CONTROL_SIZE;
+    } else {
+        frame->data_length = buffer_size - TC_PRIMARY_HEADER_SIZE - TC_FRAME_ERROR_CONTROL_SIZE;
+    }
+#else
     frame->data_length = buffer_size - TC_PRIMARY_HEADER_SIZE - TC_FRAME_ERROR_CONTROL_SIZE;
+#endif
     
     if (frame->data_length > TC_MAX_DATA_SIZE) {
         return SDLP_ERROR_INVALID_FRAME;
@@ -104,3 +138,15 @@ int sdlp_tc_decode_frame(const uint8_t *buffer, size_t buffer_size,
     
     return SDLP_SUCCESS;
 }
+
+#ifdef TC_SEGMENT_HEADER_ENABLED
+int sdlp_tc_set_segment_header(sdlp_tc_frame_t *frame, uint8_t sequence_flags, uint8_t map_id) {
+    if (!frame) {
+        return SDLP_ERROR_INVALID_PARAM;
+    }
+    frame->segment_header.sequence_flags = sequence_flags & 0x03;
+    frame->segment_header.map_id = map_id & 0x3F;
+    frame->use_segment_header = 1;
+    return SDLP_SUCCESS;
+}
+#endif

@@ -18,10 +18,12 @@
  *   0       1     First portion of SDU on one MAP
  *   1       0     Last portion of SDU on one MAP
  *   1       1     No segmentation (one complete SDU or multiple packets) */
-#define TC_SEQ_FLAG_CONTINUE 0x00  /* 00: Continuing portion of SDU */
-#define TC_SEQ_FLAG_FIRST    0x01  /* 01: First portion of SDU */
-#define TC_SEQ_FLAG_LAST     0x02  /* 10: Last portion of SDU */
-#define TC_SEQ_FLAG_NO_SEG   0x03  /* 11: No segmentation (complete SDU or multiple packets) */
+typedef enum {
+    TC_SEQ_FLAG_CONTINUE = 0x00, /* 00: Continuing portion of SDU */
+    TC_SEQ_FLAG_FIRST    = 0x01, /* 01: First portion of SDU */
+    TC_SEQ_FLAG_LAST     = 0x02, /* 10: Last portion of SDU */
+    TC_SEQ_FLAG_NO_SEG   = 0x03  /* 11: No segmentation (complete SDU or multiple packets) */
+} sdlp_tc_seq_flag_t;
 
 typedef struct {
     uint8_t sequence_flags : 2;  /* bits 0-1: Sequence Flags */
@@ -64,9 +66,9 @@ int sdlp_tc_decode_frame(const uint8_t *buffer, size_t buffer_size,
 #ifdef TC_SEGMENT_HEADER_ENABLED
 /* Set the segment header fields on a TC frame.
  * Must not be called for frames with control_command_flag set (per CCSDS 232.0-B-4 4.1.3.2.2.1.3).
- * sequence_flags: one of TC_SEQ_FLAG_* values.
+ * sequence_flags: one of the sdlp_tc_seq_flag_t values.
  * map_id: Multiplexer Access Point Identifier (0-63). */
-int sdlp_tc_set_segment_header(sdlp_tc_frame_t *frame, uint8_t sequence_flags, uint8_t map_id);
+int sdlp_tc_set_segment_header(sdlp_tc_frame_t *frame, sdlp_tc_seq_flag_t sequence_flags, uint8_t map_id);
 #endif
 
 #endif

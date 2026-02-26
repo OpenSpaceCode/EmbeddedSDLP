@@ -134,7 +134,7 @@ int sdlp_tc_decode_frame(const uint8_t *buffer, size_t buffer_size,
 }
 
 #ifdef TC_SEGMENT_HEADER_ENABLED
-int sdlp_tc_set_segment_header(sdlp_tc_frame_t *frame, uint8_t sequence_flags, uint8_t map_id) {
+int sdlp_tc_set_segment_header(sdlp_tc_frame_t *frame, sdlp_tc_seq_flag_t sequence_flags, uint8_t map_id) {
     if (!frame) {
         return SDLP_ERROR_INVALID_PARAM;
     }

@@ -14,9 +14,12 @@ int sdlp_tc_create_frame(sdlp_tc_frame_t *frame, uint16_t spacecraft_id,
     frame->header.bypass_flag = 0;
     frame->header.control_command_flag = 0;
     frame->header.reserved = 0;
-    frame->header.spacecraft_id = spacecraft_id & 0x3FF;
-    frame->header.virtual_channel_id = virtual_channel_id & 0x3F;
-    frame->header.frame_length = data_length - 1;
+    frame->header.spacecraft_id = (uint16_t)(spacecraft_id & 0x3FFU);
+    frame->header.virtual_channel_id = (uint8_t)(virtual_channel_id & 0x3FU);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    frame->header.frame_length = (uint16_t)(data_length - 1U);
+#pragma GCC diagnostic pop
     frame->header.frame_sequence_number = frame_seq_num;
     
     memcpy(frame->data, data, data_length);
@@ -46,20 +49,20 @@ int sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame, uint8_t *buffer,
     
     size_t offset = 0;
     
-    buffer[offset++] = (frame->header.transfer_frame_version << 6) | 
-                       ((frame->header.bypass_flag & 0x01) << 5) |
-                       ((frame->header.control_command_flag & 0x01) << 4) |
-                       ((frame->header.reserved & 0x03) << 2) |
-                       ((frame->header.spacecraft_id >> 8) & 0x03);
-    buffer[offset++] = frame->header.spacecraft_id & 0xFF;
-    buffer[offset++] = ((frame->header.virtual_channel_id & 0x3F) << 2) | 0x00;
-    buffer[offset++] = (frame->header.frame_length >> 8) & 0xFF;
-    buffer[offset++] = frame->header.frame_length & 0xFF;
+    buffer[offset++] = (uint8_t)((frame->header.transfer_frame_version << 6) | 
+                       ((frame->header.bypass_flag & 0x01U) << 5) |
+                       ((frame->header.control_command_flag & 0x01U) << 4) |
+                       ((frame->header.reserved & 0x03U) << 2) |
+                       ((frame->header.spacecraft_id >> 8) & 0x03U));
+    buffer[offset++] = (uint8_t)(frame->header.spacecraft_id & 0xFFU);
+    buffer[offset++] = (uint8_t)(((frame->header.virtual_channel_id & 0x3FU) << 2) | 0x00U);
+    buffer[offset++] = (uint8_t)((frame->header.frame_length >> 8) & 0xFFU);
+    buffer[offset++] = (uint8_t)(frame->header.frame_length & 0xFFU);
 
 #ifdef TC_SEGMENT_HEADER_ENABLED
     if (!frame->header.control_command_flag) {
-        buffer[offset++] = ((frame->segment_header.sequence_flags & 0x03) << 6) |
-                           (frame->segment_header.map_id & 0x3F);
+        buffer[offset++] = (uint8_t)(((frame->segment_header.sequence_flags & 0x03U) << 6) |
+                           (frame->segment_header.map_id & 0x3FU));
     }
 #endif
     
@@ -67,8 +70,8 @@ int sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame, uint8_t *buffer,
     offset += frame->data_length;
     
     uint16_t crc = sdlp_crc16(buffer, offset);
-    buffer[offset++] = (crc >> 8) & 0xFF;
-    buffer[offset++] = crc & 0xFF;
+    buffer[offset++] = (uint8_t)((crc >> 8) & 0xFFU);
+    buffer[offset++] = (uint8_t)(crc & 0xFFU);
     
     *encoded_size = offset;
     
@@ -85,17 +88,21 @@ int sdlp_tc_decode_frame(const uint8_t *buffer, size_t buffer_size,
 
     size_t offset = 0;
     
-    frame->header.transfer_frame_version = (buffer[offset] >> 6) & 0x03;
-    frame->header.bypass_flag = (buffer[offset] >> 5) & 0x01;
-    frame->header.control_command_flag = (buffer[offset] >> 4) & 0x01;
-    frame->header.reserved = (buffer[offset] >> 2) & 0x03;
-    frame->header.spacecraft_id = ((buffer[offset] & 0x03) << 8) | buffer[offset + 1];
+    /* Suppress -Wconversion: assigning masked values to bitfields is intentional. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    frame->header.transfer_frame_version = (uint8_t)((buffer[offset] >> 6) & 0x03U);
+    frame->header.bypass_flag = (uint8_t)((buffer[offset] >> 5) & 0x01U);
+    frame->header.control_command_flag = (uint8_t)((buffer[offset] >> 4) & 0x01U);
+    frame->header.reserved = (uint8_t)((buffer[offset] >> 2) & 0x03U);
+    frame->header.spacecraft_id = (uint16_t)(((uint16_t)(buffer[offset] & 0x03U) << 8) | buffer[offset + 1]);
     offset += 2;
     
-    frame->header.virtual_channel_id = (buffer[offset] >> 2) & 0x3F;
+    frame->header.virtual_channel_id = (uint8_t)((buffer[offset] >> 2) & 0x3FU);
     offset++;
     
-    frame->header.frame_length = (buffer[offset] << 8) | buffer[offset + 1];
+    frame->header.frame_length = (uint16_t)(((uint16_t)buffer[offset] << 8) | buffer[offset + 1]);
+#pragma GCC diagnostic pop
     offset += 2;
 
 #ifdef TC_SEGMENT_HEADER_ENABLED
@@ -103,16 +110,19 @@ int sdlp_tc_decode_frame(const uint8_t *buffer, size_t buffer_size,
         if (buffer_size < TC_PRIMARY_HEADER_SIZE + TC_SEGMENT_HEADER_SIZE + TC_FRAME_ERROR_CONTROL_SIZE) {
             return SDLP_ERROR_INVALID_FRAME;
         }
-        frame->segment_header.sequence_flags = (buffer[offset] >> 6) & 0x03;
-        frame->segment_header.map_id = buffer[offset] & 0x3F;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        frame->segment_header.sequence_flags = (uint8_t)((buffer[offset] >> 6) & 0x03U);
+        frame->segment_header.map_id = (uint8_t)(buffer[offset] & 0x3FU);
+#pragma GCC diagnostic pop
         offset++;
-        frame->data_length = buffer_size - TC_PRIMARY_HEADER_SIZE - TC_SEGMENT_HEADER_SIZE -
-                             TC_FRAME_ERROR_CONTROL_SIZE;
+        frame->data_length = (uint16_t)(buffer_size - TC_PRIMARY_HEADER_SIZE - TC_SEGMENT_HEADER_SIZE -
+                             TC_FRAME_ERROR_CONTROL_SIZE);
     } else {
-        frame->data_length = buffer_size - TC_PRIMARY_HEADER_SIZE - TC_FRAME_ERROR_CONTROL_SIZE;
+        frame->data_length = (uint16_t)(buffer_size - TC_PRIMARY_HEADER_SIZE - TC_FRAME_ERROR_CONTROL_SIZE);
     }
 #else
-    frame->data_length = buffer_size - TC_PRIMARY_HEADER_SIZE - TC_FRAME_ERROR_CONTROL_SIZE;
+    frame->data_length = (uint16_t)(buffer_size - TC_PRIMARY_HEADER_SIZE - TC_FRAME_ERROR_CONTROL_SIZE);
 #endif
     
     if (frame->data_length > TC_MAX_DATA_SIZE) {
@@ -122,7 +132,7 @@ int sdlp_tc_decode_frame(const uint8_t *buffer, size_t buffer_size,
     memcpy(frame->data, &buffer[offset], frame->data_length);
     offset += frame->data_length;
     
-    frame->fecf = (buffer[offset] << 8) | buffer[offset + 1];
+    frame->fecf = (uint16_t)(((uint16_t)buffer[offset] << 8) | buffer[offset + 1]);
     
     uint16_t calculated_crc = sdlp_crc16(buffer, buffer_size - TC_FRAME_ERROR_CONTROL_SIZE);
     
@@ -138,8 +148,11 @@ int sdlp_tc_set_segment_header(sdlp_tc_frame_t *frame, sdlp_tc_seq_flag_t sequen
     if (!frame) {
         return SDLP_ERROR_INVALID_PARAM;
     }
-    frame->segment_header.sequence_flags = sequence_flags & 0x03;
-    frame->segment_header.map_id = map_id & 0x3F;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+    frame->segment_header.sequence_flags = (uint8_t)(sequence_flags & 0x03U);
+    frame->segment_header.map_id = (uint8_t)(map_id & 0x3FU);
+#pragma GCC diagnostic pop
     return SDLP_SUCCESS;
 }
 #endif

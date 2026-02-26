@@ -1,5 +1,8 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror -std=c99 -pedantic -I./include
+CFLAGS ?= -O2 -Iinclude -Wall -Wextra -Wpedantic -Wconversion -Wshadow \
+		  -Wcast-align -Wcast-qual -Wpointer-arith -Wformat=2 \
+		  -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls -Wundef \
+		  -std=c11
 LDFLAGS = 
 
 SRC_DIR = src

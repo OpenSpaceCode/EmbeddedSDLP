@@ -21,7 +21,7 @@ int main(void) {
     
     result = sdlp_tm_create_frame(&frame, spacecraft_id, virtual_channel,
                                    (const uint8_t *)telemetry_data,
-                                   strlen(telemetry_data));
+                                   (uint16_t)strlen(telemetry_data));
     
     if (result != SDLP_SUCCESS) {
         printf("Error creating frame: %d\n", result);

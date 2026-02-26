@@ -122,13 +122,16 @@ if (sdlp_tm_decode_frame(buffer, encoded_size, &decoded) == SDLP_SUCCESS) {
 ```c
 #include "sdlp_tc.h"
 
+/* Telecommand identifiers */
+#define TC_CMD_SET_MODE_SAFE  0x01U
+
 uint8_t buffer[1500];
 size_t encoded_size;
 
-// Create a TC frame
-const char *cmd = "SET_MODE SAFE";
+// Create a TC frame with a numeric command ID
+uint8_t cmd_id = TC_CMD_SET_MODE_SAFE;
 sdlp_tc_frame_t frame;
-sdlp_tc_create_frame(&frame, 0x123, 1, 42, (uint8_t *)cmd, strlen(cmd));
+sdlp_tc_create_frame(&frame, 0x123, 1, 42, &cmd_id, sizeof(cmd_id));
 
 // Encode frame to buffer
 if (sdlp_tc_encode_frame(&frame, buffer, sizeof(buffer), &encoded_size) == SDLP_SUCCESS) {
@@ -141,9 +144,9 @@ if (sdlp_tc_encode_frame(&frame, buffer, sizeof(buffer), &encoded_size) == SDLP_
 ```c
 sdlp_tc_frame_t decoded;
 if (sdlp_tc_decode_frame(buffer, encoded_size, &decoded) == SDLP_SUCCESS) {
-    printf("Spacecraft ID: 0x%03X, Command: %.*s\n",
+    printf("Spacecraft ID: 0x%03X, Command ID: 0x%02X\n",
            decoded.header.spacecraft_id,
-           (int)decoded.data_length, decoded.data);
+           decoded.data[0]);
 }
 ```
 
@@ -199,18 +202,6 @@ All functions return `SDLP_SUCCESS` (0) on success or a negative error code on f
 - `SDLP_ERROR_BUFFER_TOO_SMALL` (-2): Output buffer too small
 - `SDLP_ERROR_INVALID_FRAME` (-3): Frame structure invalid
 - `SDLP_ERROR_CRC_MISMATCH` (-4): CRC validation failed
-
-## Protocol Stack
-
-```
-┌─────────────────────────────────────┐
-│   User Data (telemetry / command)   │  Mission payload
-├─────────────────────────────────────┤
-│   TM / TC Frame (header + FECF)     │  Spacecraft ID, Virtual Channel, CRC
-├─────────────────────────────────────┤
-│   Physical Link (RF, serial, fiber) │  Bit transmission
-└─────────────────────────────────────┘
-```
 
 ## Memory Usage (Estimated)
 

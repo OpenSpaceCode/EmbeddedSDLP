@@ -40,6 +40,11 @@ EmbeddedSDLP/
 ├── examples/
 │   ├── tm_example.c     # TM frame example
 │   └── tc_example.c     # TC frame example
+├── tests/
+│   ├── test_common.cpp  # GoogleTest: CRC16 tests
+│   ├── test_tm.cpp      # GoogleTest: TM frame tests
+│   ├── test_tc.cpp      # GoogleTest: TC frame tests
+│   └── test_tc_segment.cpp  # GoogleTest: TC segment header tests
 ├── docs/
 │   ├── 132x0b3_TM_SDLP.pdf   # CCSDS 132.0-B-3 standard
 │   └── 232x0b4e1c1_TC_SDLP.pdf # CCSDS 232.0-B-4 standard
@@ -78,6 +83,18 @@ make examples
 ```bash
 make test
 ```
+
+This runs both the GoogleTest unit tests and the example programs.
+
+To run only the GoogleTest unit tests:
+
+```bash
+make gtest
+```
+
+Two test binaries are produced:
+- `bin/run_tests` — tests for `sdlp_crc16`, `sdlp_tm_*`, and `sdlp_tc_*` (46 test cases total)
+- `bin/run_segment_tests` — tests for `sdlp_tc_set_segment_header` (TC_SEGMENT_HEADER_ENABLED mode)
 
 ### Clean
 

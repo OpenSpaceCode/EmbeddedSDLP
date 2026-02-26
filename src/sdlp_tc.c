@@ -52,9 +52,10 @@ int sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame, uint8_t *buffer,
                        ((frame->header.reserved & 0x03) << 2) |
                        ((frame->header.spacecraft_id >> 8) & 0x03);
     buffer[offset++] = frame->header.spacecraft_id & 0xFF;
-    buffer[offset++] = ((frame->header.virtual_channel_id & 0x3F) << 2) | 0x00;
-    buffer[offset++] = (frame->header.frame_length >> 8) & 0xFF;
+    buffer[offset++] = ((frame->header.virtual_channel_id & 0x3F) << 2) |
+                       ((frame->header.frame_length >> 8) & 0x03);
     buffer[offset++] = frame->header.frame_length & 0xFF;
+    buffer[offset++] = frame->header.frame_sequence_number;
 
 #ifdef TC_SEGMENT_HEADER_ENABLED
     if (!frame->header.control_command_flag) {
@@ -93,10 +94,11 @@ int sdlp_tc_decode_frame(const uint8_t *buffer, size_t buffer_size,
     offset += 2;
     
     frame->header.virtual_channel_id = (buffer[offset] >> 2) & 0x3F;
+    frame->header.frame_length = (uint16_t)(buffer[offset] & 0x03) << 8;
     offset++;
     
-    frame->header.frame_length = (buffer[offset] << 8) | buffer[offset + 1];
-    offset += 2;
+    frame->header.frame_length |= buffer[offset++];
+    frame->header.frame_sequence_number = buffer[offset++];
 
 #ifdef TC_SEGMENT_HEADER_ENABLED
     if (!frame->header.control_command_flag) {

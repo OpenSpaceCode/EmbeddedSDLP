@@ -1,30 +1,58 @@
-# Embedded-SDLP
+# EmbeddedSDLP
 
-A minimal Space Data Link Protocol (SDLP) implementation in C designed for embedded and resource-constrained space applications.
+Minimal, embedded-optimized implementation of **CCSDS Space Data Link Protocol (SDLP)** for TM (Telemetry) and TC (Telecommand) frame handling, following international standards.
 
-## Overview
+## Standards Compliance
 
-EmbeddedSDLP provides a lightweight implementation of TM (Telemetry) and TC (Telecommand) frame handling based on CCSDS standards. It's designed for use in spacecraft, CubeSats, and other space systems where code size and reliability are critical.
+- **CCSDS 132.0-B-3**: TM Space Data Link Protocol
+- **CCSDS 232.0-B-4**: TC Space Data Link Protocol
 
 ## Features
 
+### Core Protocol Implementation
+
 - **Telemetry (TM) Frame Handling**: Create, encode, and decode TM frames with CRC validation
 - **Telecommand (TC) Frame Handling**: Create, encode, and decode TC frames with CRC validation
-- **Minimal Dependencies**: Pure C99 with no external dependencies
-- **Embedded-Friendly**: Small memory footprint and predictable behavior
 - **CRC16 Error Detection**: Built-in frame error control field (FECF) for data integrity
 - **Configurable**: Support for virtual channels, spacecraft IDs, and frame sequence numbers
+- **TC Segment Header**: Optional MAP-based segmentation support (enabled with `TC_SEGMENT_HEADER_ENABLED`)
+
+### Design Principles
+
+- **Minimal footprint**: Small library size (stripped)
+- **Zero allocation**: Stack-based, no dynamic memory
+- **Embedded-optimized**: Pure C99, no external dependencies
+- **Portable**: Standard C99, big-endian network byte order
+- **Reliable**: CRC-16-CCITT frame error control
+
+## Project Structure
+
+```
+EmbeddedSDLP/
+├── include/
+│   ├── sdlp_common.h    # Common definitions and CRC
+│   ├── sdlp_tm.h        # TM frame definitions
+│   └── sdlp_tc.h        # TC frame definitions
+├── src/
+│   ├── sdlp_common.c    # CRC16 implementation
+│   ├── sdlp_tm.c        # TM frame implementation
+│   └── sdlp_tc.c        # TC frame implementation
+├── examples/
+│   ├── tm_example.c     # TM frame example
+│   └── tc_example.c     # TC frame example
+├── docs/
+│   ├── 132x0b3_TM_SDLP.pdf   # CCSDS 132.0-B-3 standard
+│   └── 232x0b4e1c1_TC_SDLP.pdf # CCSDS 232.0-B-4 standard
+├── Makefile
+└── README.md
+```
 
 ## Building
 
-Build the library and examples using Make:
+### Build Everything
 
 ```bash
-make all        # Build library and examples
-make lib        # Build library only
-make examples   # Build examples only
-make test       # Run example programs
-make clean      # Clean build artifacts
+make all
 ```
 
 This will create:
@@ -32,89 +60,180 @@ This will create:
 - `bin/tm_example` - TM frame example
 - `bin/tc_example` - TC frame example
 
-## Usage
+### Build Library Only
 
-### Telemetry (TM) Example
+```bash
+make lib
+# Produces: libsdlp.a (static)
+```
+
+### Build Examples
+
+```bash
+make examples
+```
+
+### Run Tests
+
+```bash
+make test
+```
+
+### Clean
+
+```bash
+make clean      # Remove build artifacts
+```
+
+## Quick Start
+
+### Create and Send a TM Frame
 
 ```c
 #include "sdlp_tm.h"
 
-sdlp_tm_frame_t frame;
 uint8_t buffer[1500];
 size_t encoded_size;
 
 // Create a TM frame
-const char *data = "Temperature: 25C";
+const char *data = "Temperature: 25C, Voltage: 3.3V";
+sdlp_tm_frame_t frame;
 sdlp_tm_create_frame(&frame, 0x123, 2, (uint8_t *)data, strlen(data));
 
 // Encode frame to buffer
-sdlp_tm_encode_frame(&frame, buffer, sizeof(buffer), &encoded_size);
-
-// Decode frame from buffer
-sdlp_tm_frame_t decoded;
-sdlp_tm_decode_frame(buffer, encoded_size, &decoded);
+if (sdlp_tm_encode_frame(&frame, buffer, sizeof(buffer), &encoded_size) == SDLP_SUCCESS) {
+    printf("TM frame encoded: %zu bytes\n", encoded_size);
+}
 ```
 
-### Telecommand (TC) Example
+### Parse an Incoming TM Frame
+
+```c
+sdlp_tm_frame_t decoded;
+if (sdlp_tm_decode_frame(buffer, encoded_size, &decoded) == SDLP_SUCCESS) {
+    printf("Spacecraft ID: 0x%03X, Data: %.*s\n",
+           decoded.header.spacecraft_id,
+           (int)decoded.data_length, decoded.data);
+}
+```
+
+### Create and Send a TC Frame
 
 ```c
 #include "sdlp_tc.h"
 
-sdlp_tc_frame_t frame;
 uint8_t buffer[1500];
 size_t encoded_size;
 
 // Create a TC frame
-const char *cmd = "ENABLE_SENSOR";
-sdlp_tc_create_frame(&frame, 0x456, 1, 0, (uint8_t *)cmd, strlen(cmd));
+const char *cmd = "SET_MODE SAFE";
+sdlp_tc_frame_t frame;
+sdlp_tc_create_frame(&frame, 0x123, 1, 42, (uint8_t *)cmd, strlen(cmd));
 
 // Encode frame to buffer
-sdlp_tc_encode_frame(&frame, buffer, sizeof(buffer), &encoded_size);
-
-// Decode frame from buffer
-sdlp_tc_frame_t decoded;
-sdlp_tc_decode_frame(buffer, encoded_size, &decoded);
+if (sdlp_tc_encode_frame(&frame, buffer, sizeof(buffer), &encoded_size) == SDLP_SUCCESS) {
+    printf("TC frame encoded: %zu bytes\n", encoded_size);
+}
 ```
 
-## API Overview
+### Parse an Incoming TC Frame
 
-### Common Functions
-- `sdlp_crc16()` - Calculate CRC16 checksum
+```c
+sdlp_tc_frame_t decoded;
+if (sdlp_tc_decode_frame(buffer, encoded_size, &decoded) == SDLP_SUCCESS) {
+    printf("Spacecraft ID: 0x%03X, Command: %.*s\n",
+           decoded.header.spacecraft_id,
+           (int)decoded.data_length, decoded.data);
+}
+```
+
+## API Reference
+
+### Common
+
+```c
+// Calculate CRC-16-CCITT checksum
+uint16_t sdlp_crc16(const uint8_t *data, size_t length);
+```
 
 ### TM Functions
-- `sdlp_tm_create_frame()` - Create a TM frame with data
-- `sdlp_tm_encode_frame()` - Encode frame to byte buffer
-- `sdlp_tm_decode_frame()` - Decode frame from byte buffer
+
+```c
+// Create a TM frame with payload data
+int sdlp_tm_create_frame(sdlp_tm_frame_t *frame, uint16_t spacecraft_id,
+                          uint8_t virtual_channel_id, const uint8_t *data,
+                          uint16_t data_length);
+
+// Encode a TM frame into a byte buffer
+int sdlp_tm_encode_frame(const sdlp_tm_frame_t *frame, uint8_t *buffer,
+                          size_t buffer_size, size_t *encoded_size);
+
+// Decode a TM frame from a byte buffer (validates CRC)
+int sdlp_tm_decode_frame(const uint8_t *buffer, size_t buffer_size,
+                          sdlp_tm_frame_t *frame);
+```
 
 ### TC Functions
-- `sdlp_tc_create_frame()` - Create a TC frame with data
-- `sdlp_tc_encode_frame()` - Encode frame to byte buffer
-- `sdlp_tc_decode_frame()` - Decode frame from byte buffer
 
-All functions return `SDLP_SUCCESS` (0) on success or a negative error code on failure.
+```c
+// Create a TC frame with command data
+int sdlp_tc_create_frame(sdlp_tc_frame_t *frame, uint16_t spacecraft_id,
+                          uint8_t virtual_channel_id, uint8_t frame_seq_num,
+                          const uint8_t *data, uint16_t data_length);
 
-## Project Structure
+// Encode a TC frame into a byte buffer
+int sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame, uint8_t *buffer,
+                          size_t buffer_size, size_t *encoded_size);
 
-```
-.
-├── include/          # Header files
-│   ├── sdlp_common.h # Common definitions and CRC
-│   ├── sdlp_tm.h     # TM frame definitions
-│   └── sdlp_tc.h     # TC frame definitions
-├── src/              # Implementation files
-│   ├── sdlp_common.c
-│   ├── sdlp_tm.c
-│   └── sdlp_tc.c
-├── examples/         # Example programs
-│   ├── tm_example.c
-│   └── tc_example.c
-└── Makefile          # Build configuration
+// Decode a TC frame from a byte buffer (validates CRC)
+int sdlp_tc_decode_frame(const uint8_t *buffer, size_t buffer_size,
+                          sdlp_tc_frame_t *frame);
+
+// Set TC segment header fields (requires TC_SEGMENT_HEADER_ENABLED)
+int sdlp_tc_set_segment_header(sdlp_tc_frame_t *frame,
+                                sdlp_tc_seq_flag_t sequence_flags, uint8_t map_id);
 ```
 
-## Requirements
+All functions return `SDLP_SUCCESS` (0) on success or a negative error code on failure:
+- `SDLP_ERROR_INVALID_PARAM` (-1): NULL pointer or invalid parameter
+- `SDLP_ERROR_BUFFER_TOO_SMALL` (-2): Output buffer too small
+- `SDLP_ERROR_INVALID_FRAME` (-3): Frame structure invalid
+- `SDLP_ERROR_CRC_MISMATCH` (-4): CRC validation failed
 
-- C compiler with C99 support (gcc, clang, etc.)
-- Make
+## Protocol Stack
+
+```
+┌─────────────────────────────────────┐
+│   User Data (telemetry / command)   │  Mission payload
+├─────────────────────────────────────┤
+│   TM / TC Frame (header + FECF)     │  Spacecraft ID, Virtual Channel, CRC
+├─────────────────────────────────────┤
+│   Physical Link (RF, serial, fiber) │  Bit transmission
+└─────────────────────────────────────┘
+```
+
+## Memory Usage (Estimated)
+
+- **Library (stripped)**: < 5 KB
+- **Per TM frame buffer**: `TM_PRIMARY_HEADER_SIZE` (6) + data + 2 bytes FECF
+- **Per TC frame buffer**: `TC_PRIMARY_HEADER_SIZE` (5) + data + 2 bytes FECF
+- **Maximum data per frame**: 1024 bytes (`TM_MAX_DATA_SIZE` / `TC_MAX_DATA_SIZE`)
+
+## Limitations and Extensions
+
+Current implementation focuses on core protocol features:
+
+- No automatic retransmission handling
+- No flow control or bandwidth management
+- No segmentation beyond optional TC segment header
+- Single static frame counter (not thread-safe)
+
+These can be extended as needed for specific mission requirements.
+
+## References
+
+- CCSDS 132.0-B-3: TM Space Data Link Protocol ([docs/132x0b3_TM_SDLP.pdf](docs/132x0b3_TM_SDLP.pdf))
+- CCSDS 232.0-B-4: TC Space Data Link Protocol ([docs/232x0b4e1c1_TC_SDLP.pdf](docs/232x0b4e1c1_TC_SDLP.pdf))
 
 ## License
 

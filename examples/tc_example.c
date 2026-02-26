@@ -1,6 +1,8 @@
 #include <stdio.h>
-#include <string.h>
 #include "sdlp_tc.h"
+
+/* Example telecommand identifiers */
+#define TC_CMD_SET_MODE_SAFE  0x01U
 
 int main(void) {
     sdlp_tc_frame_t frame;
@@ -10,7 +12,7 @@ int main(void) {
     
     printf("=== TC Frame Example ===\n\n");
     
-    const char *command_data = "SET_MODE SAFE";
+    uint8_t cmd_id = TC_CMD_SET_MODE_SAFE;
     uint16_t spacecraft_id = 0x123;
     uint8_t virtual_channel = 1;
     uint8_t sequence_number = 42;
@@ -19,11 +21,10 @@ int main(void) {
     printf("Spacecraft ID: 0x%03X\n", spacecraft_id);
     printf("Virtual Channel: %d\n", virtual_channel);
     printf("Sequence Number: %d\n", sequence_number);
-    printf("Command: %s\n", command_data);
+    printf("Command ID: 0x%02X\n", cmd_id);
     
     result = sdlp_tc_create_frame(&frame, spacecraft_id, virtual_channel,
-                                   sequence_number, (const uint8_t *)command_data,
-                                   strlen(command_data));
+                                   sequence_number, &cmd_id, sizeof(cmd_id));
     
     if (result != SDLP_SUCCESS) {
         printf("Error creating frame: %d\n", result);
@@ -73,7 +74,7 @@ int main(void) {
     printf("Segment Header: sequence_flags=0x%X map_id=%d\n",
            decoded_frame.segment_header.sequence_flags, decoded_frame.segment_header.map_id);
 #endif
-    printf("Command: %.*s\n", (int)decoded_frame.data_length, decoded_frame.data);
+    printf("Command ID: 0x%02X\n", decoded_frame.data[0]);
     printf("CRC: 0x%04X\n", decoded_frame.fecf);
     
     printf("\n=== TC Frame Example Complete ===\n");

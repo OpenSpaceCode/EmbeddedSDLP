@@ -14,8 +14,8 @@ int sdlp_tm_create_frame(sdlp_tm_frame_t *frame, uint16_t spacecraft_id,
     memset(frame, 0, sizeof(sdlp_tm_frame_t));
     
     frame->header.transfer_frame_version = SDLP_VERSION;
-    frame->header.spacecraft_id = (uint16_t)(spacecraft_id & 0x3FFU);
-    frame->header.virtual_channel_id = (uint8_t)(virtual_channel_id & 0x07U);
+    frame->header.spacecraft_id = (uint16_t)(spacecraft_id & 0x3ffu);
+    frame->header.virtual_channel_id = (uint8_t)(virtual_channel_id & 0x07u);
     frame->header.ocf_flag = 0;
     frame->header.master_channel_frame_count = tm_frame_counter++;
     frame->header.virtual_channel_frame_count = 0;
@@ -43,23 +43,23 @@ int sdlp_tm_encode_frame(const sdlp_tm_frame_t *frame, uint8_t *buffer,
     size_t offset = 0;
     
     buffer[offset++] = (uint8_t)((frame->header.transfer_frame_version << 6) | 
-                       ((frame->header.spacecraft_id >> 4) & 0x3FU));
-    buffer[offset++] = (uint8_t)(((frame->header.spacecraft_id & 0x0FU) << 4) | 
-                       ((frame->header.virtual_channel_id & 0x07U) << 1) | 
-                       (frame->header.ocf_flag & 0x01U));
+                       ((frame->header.spacecraft_id >> 4) & 0x3fu));
+    buffer[offset++] = (uint8_t)(((frame->header.spacecraft_id & 0x0fu) << 4) | 
+                       ((frame->header.virtual_channel_id & 0x07u) << 1) | 
+                       (frame->header.ocf_flag & 0x01u));
     buffer[offset++] = frame->header.master_channel_frame_count;
     buffer[offset++] = frame->header.virtual_channel_frame_count;
     
     uint16_t data_field_status = frame->header.transfer_frame_data_field_status;
-    buffer[offset++] = (uint8_t)((data_field_status >> 8) & 0xFFU);
-    buffer[offset++] = (uint8_t)(data_field_status & 0xFFU);
+    buffer[offset++] = (uint8_t)((data_field_status >> 8) & 0xffu);
+    buffer[offset++] = (uint8_t)(data_field_status & 0xffu);
     
     memcpy(&buffer[offset], frame->data, frame->data_length);
     offset += frame->data_length;
     
     uint16_t crc = sdlp_crc16(buffer, offset);
-    buffer[offset++] = (uint8_t)((crc >> 8) & 0xFFU);
-    buffer[offset++] = (uint8_t)(crc & 0xFFU);
+    buffer[offset++] = (uint8_t)((crc >> 8) & 0xffu);
+    buffer[offset++] = (uint8_t)(crc & 0xffu);
     
     *encoded_size = offset;
     
@@ -76,16 +76,12 @@ int sdlp_tm_decode_frame(const uint8_t *buffer, size_t buffer_size,
     
     size_t offset = 0;
     
-    /* Suppress -Wconversion: assigning masked values to bitfields is intentional. */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-    frame->header.transfer_frame_version = (uint8_t)((buffer[offset] >> 6) & 0x03U);
-    frame->header.spacecraft_id = (uint16_t)(((buffer[offset] & 0x3FU) << 4) | ((buffer[offset + 1] >> 4) & 0x0FU));
+    frame->header.transfer_frame_version = (uint8_t)((buffer[offset] >> 6) & 0x03u);
+    frame->header.spacecraft_id = (uint16_t)(((buffer[offset] & 0x3fu) << 4) | ((buffer[offset + 1] >> 4) & 0x0fu));
     offset++;
     
-    frame->header.virtual_channel_id = (uint8_t)((buffer[offset] >> 1) & 0x07U);
-    frame->header.ocf_flag = (uint8_t)(buffer[offset] & 0x01U);
-#pragma GCC diagnostic pop
+    frame->header.virtual_channel_id = (uint8_t)((buffer[offset] >> 1) & 0x07u);
+    frame->header.ocf_flag = (uint8_t)(buffer[offset] & 0x01u);
     offset++;
     
     frame->header.master_channel_frame_count = buffer[offset++];

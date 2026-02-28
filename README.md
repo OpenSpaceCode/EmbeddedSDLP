@@ -21,8 +21,8 @@ Minimal, embedded-optimized implementation of **CCSDS Space Data Link Protocol (
 
 - **Minimal footprint**: Small library size (stripped)
 - **Zero allocation**: Stack-based, no dynamic memory
-- **Embedded-optimized**: Pure C99, no external dependencies
-- **Portable**: Standard C99, big-endian network byte order
+- **Embedded-optimized**: Pure C11, no external dependencies
+- **Portable**: Standard C11, big-endian network byte order
 - **Reliable**: CRC-16-CCITT frame error control
 
 ## Project Structure

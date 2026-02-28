@@ -55,6 +55,7 @@ dkms.conf
 *.dwo
 
 # Build directories
+build/
 obj/
 bin/
 _codeql_detected_source_root

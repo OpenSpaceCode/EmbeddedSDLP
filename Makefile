@@ -8,18 +8,22 @@ LDFLAGS =
 SRC_DIR = src
 INC_DIR = include
 EXAMPLES_DIR = examples
-OBJ_DIR = obj
-BIN_DIR = bin
+TEST_DIR = tests
+BUILD_DIR = build
+OBJ_DIR = $(BUILD_DIR)/obj
+BIN_DIR = $(BUILD_DIR)/bin
 
 SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRCS))
 
 EXAMPLES = $(wildcard $(EXAMPLES_DIR)/*.c)
 EXAMPLE_BINS = $(patsubst $(EXAMPLES_DIR)/%.c,$(BIN_DIR)/%,$(EXAMPLES))
+TEST_SRC = $(TEST_DIR)/unit_tests.c
+TEST_BIN = $(BIN_DIR)/unit_tests
 
-LIB = libsdlp.a
+LIB = $(BUILD_DIR)/libsdlp.a
 
-.PHONY: all clean examples lib
+.PHONY: all clean examples lib unit-tests test coverage-html
 
 all: lib examples
 
@@ -33,22 +37,30 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 
 examples: $(EXAMPLE_BINS)
 
+unit-tests: $(TEST_BIN)
+
 $(BIN_DIR)/%: $(EXAMPLES_DIR)/%.c $(LIB) | $(BIN_DIR)
 	$(CC) $(CFLAGS) $< $(LIB) -o $@ $(LDFLAGS)
 
-$(OBJ_DIR):
+$(TEST_BIN): $(TEST_SRC) $(LIB) | $(BIN_DIR)
+	$(CC) $(CFLAGS) $< $(LIB) -o $@ $(LDFLAGS)
+
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+$(OBJ_DIR): | $(BUILD_DIR)
 	mkdir -p $(OBJ_DIR)
 
-$(BIN_DIR):
+
+$(BIN_DIR): | $(BUILD_DIR)
 	mkdir -p $(BIN_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR) $(LIB)
+	rm -rf $(BUILD_DIR) obj bin libsdlp.a
 
-.PHONY: test
-test: examples
-	@echo "Running TM example..."
-	@./$(BIN_DIR)/tm_example
-	@echo ""
-	@echo "Running TC example..."
-	@./$(BIN_DIR)/tc_example
+coverage-html:
+	bash scripts/coverage_html.sh
+
+test: unit-tests
+	@echo "Running unit tests..."
+	@./$(TEST_BIN)

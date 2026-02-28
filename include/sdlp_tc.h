@@ -38,7 +38,7 @@ typedef struct {
     uint16_t control_command_flag : 1;
     uint16_t reserved : 2;
     uint16_t spacecraft_id : 10;
-    uint8_t virtual_channel_id : 6;
+    uint16_t virtual_channel_id : 6;
     uint16_t frame_length : 10;
     uint8_t frame_sequence_number;
 } sdlp_tc_header_t;

@@ -56,15 +56,15 @@ make all
 ```
 
 This will create:
-- `libsdlp.a` - Static library
-- `bin/tm_example` - TM frame example
-- `bin/tc_example` - TC frame example
+- `build/libsdlp.a` - Static library
+- `build/bin/tm_example` - TM frame example
+- `build/bin/tc_example` - TC frame example
 
 ### Build Library Only
 
 ```bash
 make lib
-# Produces: libsdlp.a (static)
+# Produces: build/libsdlp.a (static)
 ```
 
 ### Build Examples
@@ -77,6 +77,26 @@ make examples
 
 ```bash
 make test
+```
+
+### Coverage (HTML)
+
+Requires `gcovr` installed in your system:
+
+```bash
+sudo apt install gcovr
+```
+
+Generate coverage report:
+
+```bash
+make coverage-html
+```
+
+Output report:
+
+```text
+build/coverage/index.html
 ```
 
 ### Clean

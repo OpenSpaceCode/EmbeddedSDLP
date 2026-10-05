@@ -186,9 +186,9 @@ sdlp_status_t sdlp_tm_set_ocf(sdlp_tm_frame_t *frame, const uint8_t ocf[TM_OCF_S
  * @param[out] buffer       Output buffer.
  * @param[in]  buffer_size  Buffer capacity in octets.
  * @param[out] encoded_size Bytes written on success.
- * @return ::SDLP_SUCCESS; ::SDLP_ERROR_INVALID_PARAM on NULL args or a Data Field longer
- *         than ::TM_MAX_DATA_SIZE; ::SDLP_ERROR_BUFFER_TOO_SMALL if @p buffer cannot hold
- *         the frame.
+ * @return ::SDLP_SUCCESS; ::SDLP_ERROR_INVALID_PARAM on NULL args, a Data Field longer
+ *         than ::TM_MAX_DATA_SIZE, or the Secondary Header Flag set with an empty Secondary
+ *         Header; ::SDLP_ERROR_BUFFER_TOO_SMALL if @p buffer cannot hold the frame.
  */
 sdlp_status_t sdlp_tm_encode_frame(const sdlp_tm_frame_t *frame,
                                    uint8_t *buffer,

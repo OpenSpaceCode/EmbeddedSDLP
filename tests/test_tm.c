@@ -558,6 +558,92 @@ static int test_tm_encode_rejects_oversized_data(void)
     return 0;
 }
 
+static int test_tm_encode_rejects_empty_secondary_header(void)
+{
+    sdlp_tm_frame_t frame;
+    const uint8_t payload[1] = {0x01u};
+
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_create_frame(&frame, 1, 0, payload, 1));
+
+    /* The flag is raised by hand, without sdlp_tm_set_secondary_header(), so the Secondary
+     * Header Data Field is empty; 4.1.3.1.3 requires 1 to 63 octets. */
+    frame.header.transfer_frame_data_field_status.secondary_header_flag = 1;
+    ASSERT_EQ_INT(
+        0,
+        test_tm_expect_encode_rejected(&frame, TEST_TM_SCRATCH_SIZE, SDLP_ERROR_INVALID_PARAM));
+
+    return 0;
+}
+
+/**
+ * @brief Round-trip a frame carrying a Secondary Header of a given Data Field length.
+ *
+ * @param[in]  length     Secondary Header Data Field length in octets.
+ * @param[out] encoded    Buffer of exactly @p frame_size octets.
+ * @param[in]  frame_size Encoded size of the frame: one Data Field octet plus the headers
+ *                        and the FECF.
+ * @return 0 if every check passed, 1 otherwise.
+ */
+static int test_tm_check_secondary_header_roundtrip(uint8_t length,
+                                                    uint8_t *encoded,
+                                                    size_t frame_size)
+{
+    sdlp_tm_frame_t frame;
+    sdlp_tm_frame_t decoded;
+    const uint8_t payload[1] = {0x5Au};
+    uint8_t sh_data[TM_SECONDARY_HEADER_MAX_DATA];
+    size_t encoded_size = 0;
+
+    for (size_t i = 0; i < sizeof(sh_data); i++)
+    {
+        sh_data[i] = (uint8_t)(i + 1u);
+    }
+
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_create_frame(&frame, 1, 0, payload, 1));
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_set_secondary_header(&frame, sh_data, length));
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_encode_frame(&frame, encoded, frame_size, &encoded_size));
+    ASSERT_EQ_INT((int)frame_size, (int)encoded_size);
+    /* Identification Field: Version '00' in the top two bits, then the Length, which
+     * equals the Data Field length (4.1.3.2). */
+    ASSERT_EQ_INT(length, encoded[TM_PRIMARY_HEADER_SIZE]);
+
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_decode_frame(encoded, encoded_size, &decoded));
+    ASSERT_EQ_INT(length, decoded.secondary_header.length);
+    ASSERT_EQ_MEM(sh_data, decoded.secondary_header.data, length);
+    ASSERT_EQ_INT(1, decoded.data_length);
+    ASSERT_EQ_INT(payload[0], decoded.data[0]);
+
+    return 0;
+}
+
+/**
+ * @brief Run the Secondary Header round trip through an exact-size heap buffer.
+ *
+ * @param[in] length Secondary Header Data Field length in octets.
+ * @return 0 if every check passed, 1 otherwise.
+ */
+static int test_tm_secondary_header_roundtrip_at(uint8_t length)
+{
+    const size_t frame_size = TM_PRIMARY_HEADER_SIZE + TM_SECONDARY_HEADER_ID_SIZE + length + 1u +
+                              TM_FRAME_ERROR_CONTROL_SIZE;
+    uint8_t *encoded = malloc(frame_size);
+    int result;
+
+    ASSERT_TRUE(encoded);
+    result = test_tm_check_secondary_header_roundtrip(length, encoded, frame_size);
+    free(encoded);
+
+    return result;
+}
+
+static int test_tm_secondary_header_length_limits(void)
+{
+    ASSERT_EQ_INT(0, test_tm_secondary_header_roundtrip_at(1));
+    ASSERT_EQ_INT(0, test_tm_secondary_header_roundtrip_at(TM_SECONDARY_HEADER_MAX_DATA));
+
+    return 0;
+}
+
 test_result_t test_tm_run_all(void)
 {
     test_result_t result;
@@ -579,6 +665,8 @@ test_result_t test_tm_run_all(void)
     RUN_TEST(test_tm_decode_data_length_beyond_16_bits);
     RUN_TEST(test_tm_encode_max_data_exact_buffer);
     RUN_TEST(test_tm_encode_rejects_oversized_data);
+    RUN_TEST(test_tm_encode_rejects_empty_secondary_header);
+    RUN_TEST(test_tm_secondary_header_length_limits);
 
     /* cunit's counters have internal linkage, so this translation unit tallies
      * only its own tests. */

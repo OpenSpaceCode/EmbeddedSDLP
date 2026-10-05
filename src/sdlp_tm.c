@@ -141,6 +141,46 @@ static void sdlp_tm_decode_secondary_header(const uint8_t *wire,
     memcpy(secondary_header->data, &wire[TM_SECONDARY_HEADER_ID_SIZE], secondary_header->length);
 }
 
+/**
+ * @brief Compute the encoded size of a TM Transfer Frame, validating the lengths it depends on.
+ *
+ * A frame filled in by hand, rather than through sdlp_tm_create_frame() and
+ * sdlp_tm_set_secondary_header(), can carry lengths that cannot be encoded.
+ *
+ * @param[in] frame Frame to measure.
+ * @return Encoded size in octets, or 0 if the Data Field is longer than ::TM_MAX_DATA_SIZE
+ *         or the Secondary Header Flag is set with an empty Secondary Header.
+ */
+static size_t sdlp_tm_encoded_size(const sdlp_tm_frame_t *frame)
+{
+    size_t size = TM_PRIMARY_HEADER_SIZE + frame->data_length + TM_FRAME_ERROR_CONTROL_SIZE;
+
+    /* A data_length beyond the Data Field array would make the encoder read past it. */
+    if (frame->data_length > TM_MAX_DATA_SIZE)
+    {
+        return 0;
+    }
+
+    if (frame->header.transfer_frame_data_field_status.secondary_header_flag)
+    {
+        /* The wire Length is the total Secondary Header size minus one (CCSDS 132.0-B-3,
+         * 4.1.3.2.3.2). A Length of 0 would be an Identification Field with no Data Field behind
+         * it, which is mandatory */
+        if (frame->secondary_header.length == 0u)
+        {
+            return 0;
+        }
+        size += TM_SECONDARY_HEADER_ID_SIZE + frame->secondary_header.length;
+    }
+
+    if (frame->header.ocf_flag)
+    {
+        size += TM_OCF_SIZE;
+    }
+
+    return size;
+}
+
 uint16_t sdlp_tm_pack_data_field_status(const sdlp_tm_data_field_status_t *status)
 {
     if (!status)
@@ -250,27 +290,15 @@ sdlp_status_t sdlp_tm_encode_frame(const sdlp_tm_frame_t *frame,
                                    size_t buffer_size,
                                    size_t *encoded_size)
 {
-    /* A hand-filled frame can carry any data_length; one beyond the Data Field array
-     * would make the copy below read past it. */
-    if ((!frame) || (!buffer) || (!encoded_size) || (frame->data_length > TM_MAX_DATA_SIZE))
+    if ((!frame) || (!buffer) || (!encoded_size))
     {
         return SDLP_ERROR_INVALID_PARAM;
     }
 
-    int secondary_header_present =
-        frame->header.transfer_frame_data_field_status.secondary_header_flag ? 1 : 0;
-    int ocf_present = frame->header.ocf_flag ? 1 : 0;
-
-    size_t required_size =
-        TM_PRIMARY_HEADER_SIZE + frame->data_length + TM_FRAME_ERROR_CONTROL_SIZE;
-
-    if (secondary_header_present)
+    const size_t required_size = sdlp_tm_encoded_size(frame);
+    if (required_size == 0u)
     {
-        required_size += TM_SECONDARY_HEADER_ID_SIZE + frame->secondary_header.length;
-    }
-    if (ocf_present)
-    {
-        required_size += TM_OCF_SIZE;
+        return SDLP_ERROR_INVALID_PARAM;
     }
 
     if (buffer_size < required_size)
@@ -295,7 +323,7 @@ sdlp_status_t sdlp_tm_encode_frame(const sdlp_tm_frame_t *frame,
 
     /* Transfer Frame Secondary Header (CCSDS 132.0-B-3, 4.1.3): Identification Field
      * (Version '00' | Length = total size - 1 = Data Field length) then the Data Field. */
-    if (secondary_header_present)
+    if (frame->header.transfer_frame_data_field_status.secondary_header_flag)
     {
         buffer[offset++] = (uint8_t)(((frame->secondary_header.version & 0x03u) << 6) |
                                      (frame->secondary_header.length & 0x3Fu));
@@ -308,7 +336,7 @@ sdlp_status_t sdlp_tm_encode_frame(const sdlp_tm_frame_t *frame,
 
     /* Operational Control Field (CCSDS 132.0-B-3, 4.1.5): four octets following the
      * Data Field, present when the OCF Flag is set. The content is caller-supplied. */
-    if (ocf_present)
+    if (frame->header.ocf_flag)
     {
         memcpy(&buffer[offset], frame->ocf, TM_OCF_SIZE);
         offset += TM_OCF_SIZE;

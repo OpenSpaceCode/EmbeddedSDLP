@@ -12,6 +12,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+/** @brief Scratch buffer size for rejected-encode checks: holds a frame just over the limit. */
+#define TEST_TM_SCRATCH_SIZE (2 * TM_MAX_DATA_SIZE)
+
+/** @brief Size of a frame with a full Data Field and neither Secondary Header nor OCF. */
+#define TEST_TM_MAX_PLAIN_FRAME_SIZE                                                               \
+    (TM_PRIMARY_HEADER_SIZE + TM_MAX_DATA_SIZE + TM_FRAME_ERROR_CONTROL_SIZE)
+
 static int test_tm_create_frame_invalid_params(void)
 {
     sdlp_tm_frame_t frame;
@@ -450,6 +457,107 @@ static int test_tm_decode_data_length_beyond_16_bits(void)
     return 0;
 }
 
+/**
+ * @brief Encode a frame the encoder must reject and check both outputs are untouched.
+ *
+ * The buffer and the encoded size are pre-filled with a sentinel pattern, so any write
+ * by the encoder shows up as a difference.
+ *
+ * @param[in] frame       Frame to encode.
+ * @param[in] buffer_size Capacity to offer the encoder, at most ::TEST_TM_SCRATCH_SIZE.
+ * @param[in] expected    Status the encoder must return.
+ * @return 0 if the encoder returned @p expected and left its outputs unchanged, 1 otherwise.
+ */
+static int test_tm_expect_encode_rejected(const sdlp_tm_frame_t *frame,
+                                          size_t buffer_size,
+                                          sdlp_status_t expected)
+{
+    uint8_t buffer[TEST_TM_SCRATCH_SIZE];
+    uint8_t untouched[TEST_TM_SCRATCH_SIZE];
+    size_t encoded_size = 0xA5A5u;
+
+    memset(buffer, 0xA5, sizeof(buffer));
+    memset(untouched, 0xA5, sizeof(untouched));
+
+    ASSERT_EQ_INT(expected, sdlp_tm_encode_frame(frame, buffer, buffer_size, &encoded_size));
+    ASSERT_EQ_INT(0xA5A5u, encoded_size);
+    ASSERT_EQ_MEM(untouched, buffer, sizeof(buffer));
+
+    return 0;
+}
+
+/**
+ * @brief Round-trip a frame with the largest Data Field through an exact-size buffer.
+ *
+ * @param[out] encoded Buffer of exactly ::TEST_TM_MAX_PLAIN_FRAME_SIZE octets.
+ * @return 0 if every check passed, 1 otherwise.
+ */
+static int test_tm_check_max_data_roundtrip(uint8_t *encoded)
+{
+    sdlp_tm_frame_t frame;
+    sdlp_tm_frame_t decoded;
+    uint8_t payload[TM_MAX_DATA_SIZE];
+    size_t encoded_size = 0;
+
+    for (size_t i = 0; i < sizeof(payload); i++)
+    {
+        payload[i] = (uint8_t)i;
+    }
+
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tm_create_frame(&frame, 1, 0, payload, (uint16_t)sizeof(payload)));
+    ASSERT_EQ_INT(0,
+                  test_tm_expect_encode_rejected(&frame,
+                                                 TEST_TM_MAX_PLAIN_FRAME_SIZE - 1,
+                                                 SDLP_ERROR_BUFFER_TOO_SMALL));
+
+    ASSERT_EQ_INT(
+        SDLP_SUCCESS,
+        sdlp_tm_encode_frame(&frame, encoded, TEST_TM_MAX_PLAIN_FRAME_SIZE, &encoded_size));
+    ASSERT_EQ_INT(TEST_TM_MAX_PLAIN_FRAME_SIZE, encoded_size);
+
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_decode_frame(encoded, encoded_size, &decoded));
+    ASSERT_EQ_INT(TM_MAX_DATA_SIZE, decoded.data_length);
+    ASSERT_EQ_MEM(payload, decoded.data, sizeof(payload));
+
+    return 0;
+}
+
+static int test_tm_encode_max_data_exact_buffer(void)
+{
+    uint8_t *encoded = malloc(TEST_TM_MAX_PLAIN_FRAME_SIZE);
+    int result;
+
+    ASSERT_TRUE(encoded);
+    result = test_tm_check_max_data_roundtrip(encoded);
+    free(encoded);
+    ASSERT_EQ_INT(0, result);
+
+    return 0;
+}
+
+static int test_tm_encode_rejects_oversized_data(void)
+{
+    sdlp_tm_frame_t frame;
+    const uint8_t payload[1] = {0x01u};
+
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_create_frame(&frame, 1, 0, payload, 1));
+
+    /* One octet more than the Data Field array holds. */
+    frame.data_length = TM_MAX_DATA_SIZE + 1;
+    ASSERT_EQ_INT(
+        0,
+        test_tm_expect_encode_rejected(&frame, TEST_TM_SCRATCH_SIZE, SDLP_ERROR_INVALID_PARAM));
+
+    /* A length far beyond the Data Field array must not be read out of the frame. */
+    frame.data_length = UINT16_MAX;
+    ASSERT_EQ_INT(
+        0,
+        test_tm_expect_encode_rejected(&frame, TEST_TM_SCRATCH_SIZE, SDLP_ERROR_INVALID_PARAM));
+
+    return 0;
+}
+
 test_result_t test_tm_run_all(void)
 {
     test_result_t result;
@@ -469,6 +577,8 @@ test_result_t test_tm_run_all(void)
     RUN_TEST(test_tm_decode_malformed);
     RUN_TEST(test_tm_decode_failure_leaves_frame_unchanged);
     RUN_TEST(test_tm_decode_data_length_beyond_16_bits);
+    RUN_TEST(test_tm_encode_max_data_exact_buffer);
+    RUN_TEST(test_tm_encode_rejects_oversized_data);
 
     /* cunit's counters have internal linkage, so this translation unit tallies
      * only its own tests. */

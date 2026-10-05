@@ -179,13 +179,16 @@ sdlp_status_t sdlp_tm_set_ocf(sdlp_tm_frame_t *frame, const uint8_t ocf[TM_OCF_S
  * @brief Serialise a TM Transfer Frame into a caller-supplied buffer.
  *
  * Emits, in order: primary header, Secondary Header (if flagged), Data Field,
- * OCF (if flagged), then the FECF (written verbatim from @p frame->fecf).
+ * OCF (if flagged), then the FECF (written verbatim from @p frame->fecf). On failure,
+ * @p buffer and @p encoded_size are left unchanged.
  *
  * @param[in]  frame        Frame to serialise.
  * @param[out] buffer       Output buffer.
  * @param[in]  buffer_size  Buffer capacity in octets.
  * @param[out] encoded_size Bytes written on success.
- * @return ::SDLP_SUCCESS, ::SDLP_ERROR_INVALID_PARAM, or ::SDLP_ERROR_BUFFER_TOO_SMALL.
+ * @return ::SDLP_SUCCESS; ::SDLP_ERROR_INVALID_PARAM on NULL args or a Data Field longer
+ *         than ::TM_MAX_DATA_SIZE; ::SDLP_ERROR_BUFFER_TOO_SMALL if @p buffer cannot hold
+ *         the frame.
  */
 sdlp_status_t sdlp_tm_encode_frame(const sdlp_tm_frame_t *frame,
                                    uint8_t *buffer,

@@ -250,7 +250,9 @@ sdlp_status_t sdlp_tm_encode_frame(const sdlp_tm_frame_t *frame,
                                    size_t buffer_size,
                                    size_t *encoded_size)
 {
-    if (!frame || !buffer || !encoded_size)
+    /* A hand-filled frame can carry any data_length; one beyond the Data Field array
+     * would make the copy below read past it. */
+    if ((!frame) || (!buffer) || (!encoded_size) || (frame->data_length > TM_MAX_DATA_SIZE))
     {
         return SDLP_ERROR_INVALID_PARAM;
     }

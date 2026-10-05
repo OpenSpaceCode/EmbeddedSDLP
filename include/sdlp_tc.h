@@ -183,13 +183,16 @@ sdlp_status_t sdlp_tc_create_set_vr_frame(sdlp_tc_frame_t *frame,
  *
  * Emits the primary header, the Segment Header (when compiled in and the frame is
  * not Type-BC), the Data Field, then the FECF (verbatim from @p frame->fecf). The
- * wire Frame Length is derived from the emitted octet count.
+ * wire Frame Length is derived from the emitted octet count. On failure, @p buffer
+ * and @p encoded_size are left unchanged.
  *
  * @param[in]  frame        Frame to serialise.
  * @param[out] buffer       Output buffer.
  * @param[in]  buffer_size  Buffer capacity in octets.
  * @param[out] encoded_size Bytes written on success.
- * @return ::SDLP_SUCCESS, ::SDLP_ERROR_INVALID_PARAM, or ::SDLP_ERROR_BUFFER_TOO_SMALL.
+ * @return ::SDLP_SUCCESS; ::SDLP_ERROR_INVALID_PARAM on NULL args or a frame that would
+ *         exceed ::TC_MAX_FRAME_SIZE octets; ::SDLP_ERROR_BUFFER_TOO_SMALL if @p buffer
+ *         cannot hold the frame.
  */
 sdlp_status_t sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame,
                                    uint8_t *buffer,

@@ -189,6 +189,14 @@ sdlp_status_t sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame,
     }
 #endif
 
+    /* A Transfer Frame is at most TC_MAX_FRAME_SIZE octets, the most the 10-bit Frame
+     * Length can express (CCSDS 232.0-B-4, 4.1.2.7). The same limit keeps data_length
+     * within frame->data, so the copy below cannot read past the array. */
+    if (required_size > TC_MAX_FRAME_SIZE)
+    {
+        return SDLP_ERROR_INVALID_PARAM;
+    }
+
     if (buffer_size < required_size)
     {
         return SDLP_ERROR_BUFFER_TOO_SMALL;

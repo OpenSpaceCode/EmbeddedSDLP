@@ -9,12 +9,16 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* The TC unit tests always exercise the segment-header configuration. */
 #ifndef TC_SEGMENT_HEADER_ENABLED
 #error "test_tc.c must be built with -DTC_SEGMENT_HEADER_ENABLED"
 #endif
+
+/** @brief Scratch buffer size for rejected-encode checks: holds a frame just over the limit. */
+#define TEST_TC_SCRATCH_SIZE (2 * TC_MAX_FRAME_SIZE)
 
 static int test_tc_create_frame_invalid_params(void)
 {
@@ -395,6 +399,125 @@ static int test_tc_decode_failure_leaves_frame_unchanged(void)
     return 0;
 }
 
+/**
+ * @brief Encode a frame the encoder must reject and check both outputs are untouched.
+ *
+ * The buffer and the encoded size are pre-filled with a sentinel pattern, so any write
+ * by the encoder shows up as a difference.
+ *
+ * @param[in] frame       Frame to encode.
+ * @param[in] buffer_size Capacity to offer the encoder, at most ::TEST_TC_SCRATCH_SIZE.
+ * @param[in] expected    Status the encoder must return.
+ * @return 0 if the encoder returned @p expected and left its outputs unchanged, 1 otherwise.
+ */
+static int test_tc_expect_encode_rejected(const sdlp_tc_frame_t *frame,
+                                          size_t buffer_size,
+                                          sdlp_status_t expected)
+{
+    uint8_t buffer[TEST_TC_SCRATCH_SIZE];
+    uint8_t untouched[TEST_TC_SCRATCH_SIZE];
+    size_t encoded_size = 0xA5A5u;
+
+    memset(buffer, 0xA5, sizeof(buffer));
+    memset(untouched, 0xA5, sizeof(untouched));
+
+    ASSERT_EQ_INT(expected, sdlp_tc_encode_frame(frame, buffer, buffer_size, &encoded_size));
+    ASSERT_EQ_INT(0xA5A5u, encoded_size);
+    ASSERT_EQ_MEM(untouched, buffer, sizeof(buffer));
+
+    return 0;
+}
+
+/**
+ * @brief Round-trip the largest legal Type-D frame through an exact-size buffer.
+ *
+ * @param[out] encoded Buffer of exactly ::TC_MAX_FRAME_SIZE octets.
+ * @return 0 if every check passed, 1 otherwise.
+ */
+static int test_tc_check_max_frame_roundtrip(uint8_t *encoded)
+{
+    sdlp_tc_frame_t frame;
+    sdlp_tc_frame_t decoded;
+    uint8_t payload[TC_MAX_DATA_SIZE - TC_SEGMENT_HEADER_SIZE];
+    size_t encoded_size = 0;
+
+    for (size_t i = 0; i < sizeof(payload); i++)
+    {
+        payload[i] = (uint8_t)i;
+    }
+
+    ASSERT_EQ_INT(
+        SDLP_SUCCESS,
+        sdlp_tc_create_frame(&frame, 0x3FFu, 0x3Fu, 0xFFu, payload, (uint16_t)sizeof(payload)));
+    ASSERT_EQ_INT(
+        0,
+        test_tc_expect_encode_rejected(&frame, TC_MAX_FRAME_SIZE - 1, SDLP_ERROR_BUFFER_TOO_SMALL));
+
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tc_encode_frame(&frame, encoded, TC_MAX_FRAME_SIZE, &encoded_size));
+    ASSERT_EQ_INT(TC_MAX_FRAME_SIZE, encoded_size);
+    /* Frame Length = 1023 sets all ten bits: the low two of octet 2 and all of octet 3. */
+    ASSERT_EQ_INT(0x03u, encoded[2] & 0x03u);
+    ASSERT_EQ_INT(0xFFu, encoded[3]);
+
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_decode_frame(encoded, encoded_size, &decoded));
+    ASSERT_EQ_INT((int)sizeof(payload), decoded.data_length);
+    ASSERT_EQ_MEM(payload, decoded.data, sizeof(payload));
+
+    return 0;
+}
+
+static int test_tc_encode_max_frame_exact_buffer(void)
+{
+    uint8_t *encoded = malloc(TC_MAX_FRAME_SIZE);
+    int result;
+
+    ASSERT_TRUE(encoded);
+    result = test_tc_check_max_frame_roundtrip(encoded);
+    free(encoded);
+    ASSERT_EQ_INT(0, result);
+
+    return 0;
+}
+
+static int test_tc_encode_rejects_oversized_frame(void)
+{
+    sdlp_tc_frame_t frame;
+    const uint8_t payload[1] = {0x01u};
+    uint8_t encoded[TC_MAX_FRAME_SIZE];
+    size_t encoded_size = 0;
+
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_create_frame(&frame, 1, 1, 1, payload, 1));
+
+    /* Type-D: the Segment Header takes one octet, so a full Data Field array makes a
+     * 1025-octet frame, one more than the 10-bit Frame Length can express. */
+    frame.data_length = TC_MAX_DATA_SIZE;
+    ASSERT_EQ_INT(
+        0,
+        test_tc_expect_encode_rejected(&frame, TEST_TC_SCRATCH_SIZE, SDLP_ERROR_INVALID_PARAM));
+
+    /* A length far beyond the Data Field array must not be read out of the frame. */
+    frame.data_length = UINT16_MAX;
+    ASSERT_EQ_INT(
+        0,
+        test_tc_expect_encode_rejected(&frame, TEST_TC_SCRATCH_SIZE, SDLP_ERROR_INVALID_PARAM));
+
+    /* Type-BC carries no Segment Header: a full Data Field array is exactly the largest
+     * frame, and one octet more is rejected. */
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_set_frame_type(&frame, SDLP_TC_FRAME_TYPE_BC));
+    frame.data_length = TC_MAX_DATA_SIZE;
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tc_encode_frame(&frame, encoded, sizeof(encoded), &encoded_size));
+    ASSERT_EQ_INT(TC_MAX_FRAME_SIZE, encoded_size);
+
+    frame.data_length = TC_MAX_DATA_SIZE + 1;
+    ASSERT_EQ_INT(
+        0,
+        test_tc_expect_encode_rejected(&frame, TEST_TC_SCRATCH_SIZE, SDLP_ERROR_INVALID_PARAM));
+
+    return 0;
+}
+
 test_result_t test_tc_run_all(void)
 {
     test_result_t result;
@@ -413,6 +536,8 @@ test_result_t test_tc_run_all(void)
     RUN_TEST(test_tc_segment_header_roundtrip);
     RUN_TEST(test_tc_decode_segment_too_small);
     RUN_TEST(test_tc_decode_failure_leaves_frame_unchanged);
+    RUN_TEST(test_tc_encode_max_frame_exact_buffer);
+    RUN_TEST(test_tc_encode_rejects_oversized_frame);
 
     /* cunit's counters have internal linkage, so this translation unit tallies
      * only its own tests. */

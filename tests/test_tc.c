@@ -9,6 +9,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 /* The TC unit tests always exercise the segment-header configuration. */
 #ifndef TC_SEGMENT_HEADER_ENABLED
@@ -335,6 +336,65 @@ static int test_tc_decode_segment_too_small(void)
     return 0;
 }
 
+/**
+ * @brief Decode a buffer the decoder must reject and check the output frame is untouched.
+ *
+ * The frame is pre-filled with a sentinel pattern, so any write by the decoder shows up
+ * as a difference, whichever field it lands in.
+ *
+ * @param[in] buffer      Wire buffer to decode (may be NULL).
+ * @param[in] buffer_size Buffer length in octets.
+ * @param[in] expected    Status the decoder must return.
+ * @return 0 if the decoder returned @p expected and left the frame unchanged, 1 otherwise.
+ */
+static int test_tc_expect_decode_rejected(const uint8_t *buffer,
+                                          size_t buffer_size,
+                                          sdlp_status_t expected)
+{
+    sdlp_tc_frame_t frame;
+    sdlp_tc_frame_t untouched;
+
+    memset(&frame, 0xA5, sizeof(frame));
+    memset(&untouched, 0xA5, sizeof(untouched));
+
+    ASSERT_EQ_INT(expected, sdlp_tc_decode_frame(buffer, buffer_size, &frame));
+    ASSERT_EQ_MEM(&untouched, &frame, sizeof(frame));
+
+    return 0;
+}
+
+static int test_tc_decode_failure_leaves_frame_unchanged(void)
+{
+    const uint8_t too_short[TC_PRIMARY_HEADER_SIZE + TC_FRAME_ERROR_CONTROL_SIZE - 1] = {0};
+    /* Bypass=0, Control Command=1 is reserved (table 4-1); the Frame Length is consistent. */
+    const uint8_t reserved_type[8] = {0x10u, 0, 0, 7};
+    /* Frame Length = 6 announces 7 octets, but 8 are present. */
+    const uint8_t wrong_length[8] = {0, 0, 0, 6};
+    /* A consistent 7-octet Type-D frame has no room for the Segment Header and the FECF. */
+    const uint8_t no_segment_room[7] = {0, 0, 0, 6};
+
+    ASSERT_EQ_INT(
+        0,
+        test_tc_expect_decode_rejected(NULL, sizeof(wrong_length), SDLP_ERROR_INVALID_PARAM));
+    ASSERT_EQ_INT(
+        0,
+        test_tc_expect_decode_rejected(too_short, sizeof(too_short), SDLP_ERROR_INVALID_PARAM));
+    ASSERT_EQ_INT(0,
+                  test_tc_expect_decode_rejected(reserved_type,
+                                                 sizeof(reserved_type),
+                                                 SDLP_ERROR_INVALID_FRAME));
+    ASSERT_EQ_INT(0,
+                  test_tc_expect_decode_rejected(wrong_length,
+                                                 sizeof(wrong_length),
+                                                 SDLP_ERROR_INVALID_FRAME));
+    ASSERT_EQ_INT(0,
+                  test_tc_expect_decode_rejected(no_segment_room,
+                                                 sizeof(no_segment_room),
+                                                 SDLP_ERROR_INVALID_FRAME));
+
+    return 0;
+}
+
 test_result_t test_tc_run_all(void)
 {
     test_result_t result;
@@ -352,6 +412,7 @@ test_result_t test_tc_run_all(void)
     RUN_TEST(test_tc_decode_reserved_frame_type);
     RUN_TEST(test_tc_segment_header_roundtrip);
     RUN_TEST(test_tc_decode_segment_too_small);
+    RUN_TEST(test_tc_decode_failure_leaves_frame_unchanged);
 
     /* cunit's counters have internal linkage, so this translation unit tallies
      * only its own tests. */

@@ -196,7 +196,8 @@ sdlp_status_t sdlp_tm_encode_frame(const sdlp_tm_frame_t *frame,
  * @brief Parse a wire-format TM Transfer Frame.
  *
  * Recovers the header, any Secondary Header / OCF signalled by their flags, the
- * Data Field, and the FECF (surfaced as-is, without validation).
+ * Data Field, and the FECF (surfaced as-is, without validation). On failure,
+ * @p frame is left unchanged.
  *
  * @param[in]  buffer      Wire buffer to parse.
  * @param[in]  buffer_size Buffer length in octets.

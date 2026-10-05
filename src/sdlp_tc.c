@@ -31,6 +31,26 @@ static uint16_t tc_frame_length(const sdlp_tc_frame_t *frame)
     return (uint16_t)(frame_octets - 1u);
 }
 
+/**
+ * @brief Decode the 5-octet Transfer Frame Primary Header (CCSDS 232.0-B-4 §4.1.2).
+ *
+ * @param[in]  buffer Wire buffer holding at least ::TC_PRIMARY_HEADER_SIZE octets.
+ * @param[out] header Decoded primary header fields.
+ */
+static void sdlp_tc_decode_primary_header(const uint8_t *buffer, sdlp_tc_header_t *header)
+{
+    memset(header, 0, sizeof(sdlp_tc_header_t));
+
+    header->transfer_frame_version = (uint16_t)((buffer[0] >> 6) & 0x03u);
+    header->bypass_flag = (uint16_t)((buffer[0] >> 5) & 0x01u);
+    header->control_command_flag = (uint16_t)((buffer[0] >> 4) & 0x01u);
+    header->reserved = (uint16_t)((buffer[0] >> 2) & 0x03u);
+    header->spacecraft_id = (uint16_t)((((unsigned)buffer[0] << 8) | buffer[1]) & 0x03FFu);
+    header->virtual_channel_id = (uint16_t)((buffer[2] >> 2) & 0x3Fu);
+    header->frame_length = (uint16_t)((((unsigned)buffer[2] << 8) | buffer[3]) & 0x03FFu);
+    header->frame_sequence_number = buffer[4];
+}
+
 sdlp_status_t sdlp_tc_create_frame(sdlp_tc_frame_t *frame,
                                    uint16_t spacecraft_id,
                                    uint8_t virtual_channel_id,
@@ -216,75 +236,64 @@ sdlp_status_t sdlp_tc_decode_frame(const uint8_t *buffer,
                                    size_t buffer_size,
                                    sdlp_tc_frame_t *frame)
 {
-    if (!buffer || !frame || buffer_size < TC_PRIMARY_HEADER_SIZE + TC_FRAME_ERROR_CONTROL_SIZE)
+    if ((!buffer) || (!frame) ||
+        (buffer_size < (TC_PRIMARY_HEADER_SIZE + TC_FRAME_ERROR_CONTROL_SIZE)))
     {
         return SDLP_ERROR_INVALID_PARAM;
     }
 
-    memset(frame, 0, sizeof(sdlp_tc_frame_t));
-
-    size_t offset = 0;
-
-    frame->header.transfer_frame_version = (uint8_t)((buffer[offset] >> 6) & 0x03u);
-    frame->header.bypass_flag = (uint8_t)((buffer[offset] >> 5) & 0x01u);
-    frame->header.control_command_flag = (uint8_t)((buffer[offset] >> 4) & 0x01u);
-    frame->header.reserved = (uint8_t)((buffer[offset] >> 2) & 0x03u);
-    frame->header.spacecraft_id =
-        (uint16_t)(((uint16_t)(buffer[offset] & 0x03u) << 8) | buffer[offset + 1]);
-    offset += 2;
+    sdlp_tc_header_t header;
+    sdlp_tc_decode_primary_header(buffer, &header);
 
     /* Bypass=0 with Control Command=1 is reserved for future application
      * (CCSDS 232.0-B-4, table 4-1). */
-    if (!frame->header.bypass_flag && frame->header.control_command_flag)
+    if ((!header.bypass_flag) && (header.control_command_flag))
     {
         return SDLP_ERROR_INVALID_FRAME;
     }
-
-    frame->header.virtual_channel_id = (uint8_t)((buffer[offset] >> 2) & 0x3Fu);
-    frame->header.frame_length =
-        (uint16_t)((((uint16_t)buffer[offset] & 0x03u) << 8) | (uint16_t)buffer[offset + 1]);
-    offset += 2;
-    frame->header.frame_sequence_number = buffer[offset++];
 
     /* Frame Validation: the Frame Length must equal the actual octet count minus one
      * (CCSDS 232.0-B-4, 4.1.2.7.2). */
-    if ((size_t)frame->header.frame_length + 1u != buffer_size)
+    if (((size_t)header.frame_length + 1u) != buffer_size)
     {
         return SDLP_ERROR_INVALID_FRAME;
     }
 
+    size_t data_offset = TC_PRIMARY_HEADER_SIZE;
+
 #ifdef TC_SEGMENT_HEADER_ENABLED
-    if (!frame->header.control_command_flag)
+    sdlp_tc_segment_header_t segment_header = {0};
+    if (!header.control_command_flag)
     {
         if (buffer_size <
-            TC_PRIMARY_HEADER_SIZE + TC_SEGMENT_HEADER_SIZE + TC_FRAME_ERROR_CONTROL_SIZE)
+            (TC_PRIMARY_HEADER_SIZE + TC_SEGMENT_HEADER_SIZE + TC_FRAME_ERROR_CONTROL_SIZE))
         {
             return SDLP_ERROR_INVALID_FRAME;
         }
-        frame->segment_header.sequence_flags = (uint8_t)((buffer[offset] >> 6) & 0x03u);
-        frame->segment_header.map_id = (uint8_t)(buffer[offset] & 0x3Fu);
-        offset++;
-        frame->data_length = (uint16_t)(buffer_size - TC_PRIMARY_HEADER_SIZE -
-                                        TC_SEGMENT_HEADER_SIZE - TC_FRAME_ERROR_CONTROL_SIZE);
+        segment_header.sequence_flags = (buffer[data_offset] >> 6) & 0x03u;
+        segment_header.map_id = buffer[data_offset] & 0x3Fu;
+        data_offset += TC_SEGMENT_HEADER_SIZE;
     }
-    else
-    {
-        frame->data_length =
-            (uint16_t)(buffer_size - TC_PRIMARY_HEADER_SIZE - TC_FRAME_ERROR_CONTROL_SIZE);
-    }
-#else
-    frame->data_length =
-        (uint16_t)(buffer_size - TC_PRIMARY_HEADER_SIZE - TC_FRAME_ERROR_CONTROL_SIZE);
 #endif
 
     /* The Frame Length validation above pins buffer_size to frame_length + 1 (<= 1024),
      * so data_length is inherently <= TC_MAX_DATA_SIZE and the Data Field fits. */
-    memcpy(frame->data, &buffer[offset], frame->data_length);
-    offset += frame->data_length;
+    const size_t data_length = buffer_size - data_offset - TC_FRAME_ERROR_CONTROL_SIZE;
+    const size_t fecf_offset = data_offset + data_length;
+
+    /* Every check has passed. The output frame is written only from here on, so a
+     * rejected buffer leaves it exactly as the caller passed it. */
+    memset(frame, 0, sizeof(sdlp_tc_frame_t));
+    frame->header = header;
+#ifdef TC_SEGMENT_HEADER_ENABLED
+    frame->segment_header = segment_header;
+#endif
+    memcpy(frame->data, &buffer[data_offset], data_length);
+    frame->data_length = (uint16_t)data_length;
 
     /* The Frame Error Control Field is surfaced as-is; validating it (e.g. via
      * CRC-16) is left to the application. */
-    frame->fecf = (uint16_t)(((uint16_t)buffer[offset] << 8) | buffer[offset + 1]);
+    frame->fecf = (uint16_t)(((uint16_t)buffer[fecf_offset] << 8) | buffer[fecf_offset + 1u]);
 
     return SDLP_SUCCESS;
 }

@@ -9,6 +9,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 static int test_tm_create_frame_invalid_params(void)
 {
@@ -360,6 +362,94 @@ static int test_tm_decode_malformed(void)
     return 0;
 }
 
+/**
+ * @brief Decode a buffer the decoder must reject and check the output frame is untouched.
+ *
+ * The frame is pre-filled with a sentinel pattern, so any write by the decoder shows up
+ * as a difference, whichever field it lands in.
+ *
+ * @param[in] buffer      Wire buffer to decode (may be NULL).
+ * @param[in] buffer_size Buffer length in octets.
+ * @param[in] expected    Status the decoder must return.
+ * @return 0 if the decoder returned @p expected and left the frame unchanged, 1 otherwise.
+ */
+static int test_tm_expect_decode_rejected(const uint8_t *buffer,
+                                          size_t buffer_size,
+                                          sdlp_status_t expected)
+{
+    sdlp_tm_frame_t frame;
+    sdlp_tm_frame_t untouched;
+
+    memset(&frame, 0xA5, sizeof(frame));
+    memset(&untouched, 0xA5, sizeof(untouched));
+
+    ASSERT_EQ_INT(expected, sdlp_tm_decode_frame(buffer, buffer_size, &frame));
+    ASSERT_EQ_MEM(&untouched, &frame, sizeof(frame));
+
+    return 0;
+}
+
+static int test_tm_decode_failure_leaves_frame_unchanged(void)
+{
+    const uint8_t too_short[TM_PRIMARY_HEADER_SIZE + TM_FRAME_ERROR_CONTROL_SIZE - 1] = {0};
+    /* Secondary Header Flag set (byte 4 bit 7), no room for its Identification Field plus
+     * one Data Field octet. */
+    const uint8_t no_secondary_room[9] = {0, 0, 0, 0, 0x80u};
+    /* Secondary Header Length of zero, i.e. an empty Data Field. */
+    const uint8_t empty_secondary[10] = {0, 0, 0, 0, 0x80u};
+    /* Secondary Header Length overruns the remaining buffer. */
+    const uint8_t secondary_overrun[10] = {0, 0, 0, 0, 0x80u, 0, 0x0Au};
+    /* OCF Flag set (byte 1 bit 0), no room for the 4-octet OCF. */
+    const uint8_t no_ocf_room[8] = {0, 0x01u};
+    /* Data Field one octet longer than TM_MAX_DATA_SIZE. */
+    static const uint8_t oversized[TM_PRIMARY_HEADER_SIZE + TM_MAX_DATA_SIZE + 1 +
+                                   TM_FRAME_ERROR_CONTROL_SIZE] = {0};
+
+    ASSERT_EQ_INT(
+        0,
+        test_tm_expect_decode_rejected(NULL, sizeof(no_ocf_room), SDLP_ERROR_INVALID_PARAM));
+    ASSERT_EQ_INT(
+        0,
+        test_tm_expect_decode_rejected(too_short, sizeof(too_short), SDLP_ERROR_INVALID_PARAM));
+    ASSERT_EQ_INT(0,
+                  test_tm_expect_decode_rejected(no_secondary_room,
+                                                 sizeof(no_secondary_room),
+                                                 SDLP_ERROR_INVALID_FRAME));
+    ASSERT_EQ_INT(0,
+                  test_tm_expect_decode_rejected(empty_secondary,
+                                                 sizeof(empty_secondary),
+                                                 SDLP_ERROR_INVALID_FRAME));
+    ASSERT_EQ_INT(0,
+                  test_tm_expect_decode_rejected(secondary_overrun,
+                                                 sizeof(secondary_overrun),
+                                                 SDLP_ERROR_INVALID_FRAME));
+    ASSERT_EQ_INT(
+        0,
+        test_tm_expect_decode_rejected(no_ocf_room, sizeof(no_ocf_room), SDLP_ERROR_INVALID_FRAME));
+    ASSERT_EQ_INT(
+        0,
+        test_tm_expect_decode_rejected(oversized, sizeof(oversized), SDLP_ERROR_INVALID_FRAME));
+
+    return 0;
+}
+
+static int test_tm_decode_data_length_beyond_16_bits(void)
+{
+    /* A Data Field of 65546 octets reads as 10 once narrowed to 16 bits, so the decoder
+     * must range-check the length before narrowing it. */
+    const size_t data_length = (size_t)UINT16_MAX + 1u + 10u;
+    const size_t buffer_size = TM_PRIMARY_HEADER_SIZE + data_length + TM_FRAME_ERROR_CONTROL_SIZE;
+    uint8_t *buffer = calloc(buffer_size, 1);
+    int result;
+
+    ASSERT_TRUE(buffer);
+    result = test_tm_expect_decode_rejected(buffer, buffer_size, SDLP_ERROR_INVALID_FRAME);
+    free(buffer);
+    ASSERT_EQ_INT(0, result);
+
+    return 0;
+}
+
 test_result_t test_tm_run_all(void)
 {
     test_result_t result;
@@ -377,6 +467,8 @@ test_result_t test_tm_run_all(void)
     RUN_TEST(test_tm_set_ocf_invalid);
     RUN_TEST(test_tm_null_params);
     RUN_TEST(test_tm_decode_malformed);
+    RUN_TEST(test_tm_decode_failure_leaves_frame_unchanged);
+    RUN_TEST(test_tm_decode_data_length_beyond_16_bits);
 
     /* cunit's counters have internal linkage, so this translation unit tallies
      * only its own tests. */

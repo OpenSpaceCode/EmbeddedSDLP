@@ -201,6 +201,7 @@ sdlp_status_t sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame,
  *
  * Validates that the Frame Length matches the octet count and rejects the reserved
  * Bypass=0/Control Command=1 combination. The FECF is surfaced without validation.
+ * On failure, @p frame is left unchanged.
  *
  * @param[in]  buffer      Wire buffer to parse.
  * @param[in]  buffer_size Buffer length in octets.

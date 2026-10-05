@@ -71,6 +71,76 @@ static tm_master_channel_t *tm_get_master_channel(uint16_t spacecraft_id)
     return NULL;
 }
 
+/**
+ * @brief Decode the 6-octet Transfer Frame Primary Header (CCSDS 132.0-B-3 §4.1.2).
+ *
+ * @param[in]  buffer Wire buffer holding at least ::TM_PRIMARY_HEADER_SIZE octets.
+ * @param[out] header Decoded primary header fields.
+ */
+static void sdlp_tm_decode_primary_header(const uint8_t *buffer, sdlp_tm_header_t *header)
+{
+    const uint16_t data_field_status = (uint16_t)(((uint16_t)buffer[4] << 8) | buffer[5]);
+
+    memset(header, 0, sizeof(sdlp_tm_header_t));
+
+    header->transfer_frame_version = (uint16_t)((buffer[0] >> 6) & 0x03u);
+    header->spacecraft_id = (uint16_t)(((buffer[0] & 0x3Fu) << 4) | ((buffer[1] >> 4) & 0x0Fu));
+    header->virtual_channel_id = (uint16_t)((buffer[1] >> 1) & 0x07u);
+    header->ocf_flag = (uint16_t)(buffer[1] & 0x01u);
+    header->master_channel_frame_count = buffer[2];
+    header->virtual_channel_frame_count = buffer[3];
+    sdlp_tm_unpack_data_field_status(data_field_status, &header->transfer_frame_data_field_status);
+}
+
+/**
+ * @brief Validate the Transfer Frame Secondary Header of a wire frame and return its size.
+ *
+ * Reads nothing beyond the Identification Field, so it is safe on any buffer that holds
+ * at least a primary header and a Frame Error Control Field.
+ *
+ * @param[in] buffer      Wire buffer holding the whole Transfer Frame.
+ * @param[in] buffer_size Buffer length in octets.
+ * @return Secondary Header size in octets (Identification Field plus Data Field), or 0 if
+ *         the header is malformed or does not fit in the frame.
+ */
+static size_t sdlp_tm_secondary_header_wire_size(const uint8_t *buffer, size_t buffer_size)
+{
+    /* Need the Identification Field plus at least one Data Field octet (4.1.3.1.3). */
+    if (buffer_size <
+        (TM_PRIMARY_HEADER_SIZE + TM_SECONDARY_HEADER_ID_SIZE + 1u + TM_FRAME_ERROR_CONTROL_SIZE))
+    {
+        return 0;
+    }
+
+    /* The wire Length is the total Secondary Header size minus one, which is exactly the
+     * Data Field length (4.1.3.2.3.2). */
+    const size_t data_length = buffer[TM_PRIMARY_HEADER_SIZE] & 0x3Fu;
+    const size_t header_size = TM_SECONDARY_HEADER_ID_SIZE + data_length;
+
+    if ((data_length == 0u) ||
+        (buffer_size < (TM_PRIMARY_HEADER_SIZE + header_size + TM_FRAME_ERROR_CONTROL_SIZE)))
+    {
+        return 0;
+    }
+
+    return header_size;
+}
+
+/**
+ * @brief Decode a wire-format Transfer Frame Secondary Header (CCSDS 132.0-B-3 §4.1.3).
+ *
+ * @param[in]  wire             Secondary Header octets, starting at the Identification Field
+ *                              and already validated by sdlp_tm_secondary_header_wire_size().
+ * @param[out] secondary_header Decoded Secondary Header.
+ */
+static void sdlp_tm_decode_secondary_header(const uint8_t *wire,
+                                            sdlp_tm_secondary_header_t *secondary_header)
+{
+    secondary_header->version = (wire[0] >> 6) & 0x03u;
+    secondary_header->length = wire[0] & 0x3Fu;
+    memcpy(secondary_header->data, &wire[TM_SECONDARY_HEADER_ID_SIZE], secondary_header->length);
+}
+
 uint16_t sdlp_tm_pack_data_field_status(const sdlp_tm_data_field_status_t *status)
 {
     if (!status)
@@ -256,89 +326,58 @@ sdlp_status_t sdlp_tm_decode_frame(const uint8_t *buffer,
                                    size_t buffer_size,
                                    sdlp_tm_frame_t *frame)
 {
-    if (!buffer || !frame || buffer_size < TM_PRIMARY_HEADER_SIZE + TM_FRAME_ERROR_CONTROL_SIZE)
+    if ((!buffer) || (!frame) ||
+        (buffer_size < (TM_PRIMARY_HEADER_SIZE + TM_FRAME_ERROR_CONTROL_SIZE)))
     {
         return SDLP_ERROR_INVALID_PARAM;
     }
 
-    memset(frame, 0, sizeof(sdlp_tm_frame_t));
-
-    size_t offset = 0;
-
-    frame->header.transfer_frame_version = (uint8_t)((buffer[offset] >> 6) & 0x03u);
-    frame->header.spacecraft_id =
-        (uint16_t)(((buffer[offset] & 0x3Fu) << 4) | ((buffer[offset + 1] >> 4) & 0x0Fu));
-    offset++;
-
-    frame->header.virtual_channel_id = (uint8_t)((buffer[offset] >> 1) & 0x07u);
-    frame->header.ocf_flag = (uint8_t)(buffer[offset] & 0x01u);
-    offset++;
-
-    frame->header.master_channel_frame_count = buffer[offset++];
-    frame->header.virtual_channel_frame_count = buffer[offset++];
-
-    uint16_t data_field_status = (uint16_t)(((uint16_t)buffer[offset] << 8) | buffer[offset + 1]);
-    sdlp_tm_unpack_data_field_status(data_field_status,
-                                     &frame->header.transfer_frame_data_field_status);
-    offset += 2;
+    sdlp_tm_header_t header;
+    sdlp_tm_decode_primary_header(buffer, &header);
 
     /* Transfer Frame Secondary Header (CCSDS 132.0-B-3, 4.1.3), present when the
      * Secondary Header Flag is set. Its size is signaled in the Identification Field. */
     size_t secondary_header_size = 0;
-    if (frame->header.transfer_frame_data_field_status.secondary_header_flag)
+    if (header.transfer_frame_data_field_status.secondary_header_flag)
     {
-        uint8_t sh_length;
-
-        /* Need the Identification Field plus at least one Data Field octet (4.1.3.1.3). */
-        if (buffer_size <
-            TM_PRIMARY_HEADER_SIZE + TM_SECONDARY_HEADER_ID_SIZE + 1u + TM_FRAME_ERROR_CONTROL_SIZE)
+        secondary_header_size = sdlp_tm_secondary_header_wire_size(buffer, buffer_size);
+        if (secondary_header_size == 0u)
         {
             return SDLP_ERROR_INVALID_FRAME;
         }
-
-        frame->secondary_header.version = (uint8_t)((buffer[offset] >> 6) & 0x03u);
-        sh_length = (uint8_t)(buffer[offset] & 0x3Fu); /* total size - 1 = Data Field length */
-        if (sh_length == 0u)
-        {
-            return SDLP_ERROR_INVALID_FRAME;
-        }
-        secondary_header_size = TM_SECONDARY_HEADER_ID_SIZE + sh_length;
-
-        if (buffer_size <
-            TM_PRIMARY_HEADER_SIZE + secondary_header_size + TM_FRAME_ERROR_CONTROL_SIZE)
-        {
-            return SDLP_ERROR_INVALID_FRAME;
-        }
-
-        frame->secondary_header.length = sh_length;
-        memcpy(frame->secondary_header.data,
-               &buffer[offset + TM_SECONDARY_HEADER_ID_SIZE],
-               sh_length);
-        offset += secondary_header_size;
     }
 
     /* Operational Control Field (CCSDS 132.0-B-3, 4.1.5): four octets between the
      * Data Field and the Frame Error Control Field, present when the OCF Flag is set. */
-    size_t ocf_size = frame->header.ocf_flag ? TM_OCF_SIZE : 0;
-
-    size_t overhead =
+    const size_t ocf_size = header.ocf_flag ? TM_OCF_SIZE : 0;
+    const size_t overhead =
         TM_PRIMARY_HEADER_SIZE + secondary_header_size + ocf_size + TM_FRAME_ERROR_CONTROL_SIZE;
-    if (buffer_size < overhead)
+
+    /* The Data Field length is range-checked at full width: narrowing it to the 16-bit
+     * data_length first would let an oversized buffer wrap round to a small, valid length. */
+    if ((buffer_size < overhead) || ((buffer_size - overhead) > TM_MAX_DATA_SIZE))
     {
         return SDLP_ERROR_INVALID_FRAME;
     }
+    const size_t data_length = buffer_size - overhead;
 
-    frame->data_length = (uint16_t)(buffer_size - overhead);
+    /* Every check has passed. The output frame is written only from here on, so a
+     * rejected buffer leaves it exactly as the caller passed it. */
+    memset(frame, 0, sizeof(sdlp_tm_frame_t));
+    frame->header = header;
 
-    if (frame->data_length > TM_MAX_DATA_SIZE)
+    size_t offset = TM_PRIMARY_HEADER_SIZE;
+    if (secondary_header_size > 0u)
     {
-        return SDLP_ERROR_INVALID_FRAME;
+        sdlp_tm_decode_secondary_header(&buffer[offset], &frame->secondary_header);
+        offset += secondary_header_size;
     }
 
-    memcpy(frame->data, &buffer[offset], frame->data_length);
-    offset += frame->data_length;
+    memcpy(frame->data, &buffer[offset], data_length);
+    frame->data_length = (uint16_t)data_length;
+    offset += data_length;
 
-    if (frame->header.ocf_flag)
+    if (header.ocf_flag)
     {
         memcpy(frame->ocf, &buffer[offset], TM_OCF_SIZE);
         offset += TM_OCF_SIZE;

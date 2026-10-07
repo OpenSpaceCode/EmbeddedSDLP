@@ -312,7 +312,9 @@ sdlp_status_t sdlp_tc_set_segment_header(sdlp_tc_frame_t *frame,
                                          sdlp_tc_seq_flag_t sequence_flags,
                                          uint8_t map_id)
 {
-    if (!frame)
+    /* The Segment Header must not be present in Transfer Frames carrying Control Commands
+     * (CCSDS 232.0-B-4, 4.1.3.2.2.1.3). */
+    if ((!frame) || (frame->header.control_command_flag))
     {
         return SDLP_ERROR_INVALID_PARAM;
     }

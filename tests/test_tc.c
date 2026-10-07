@@ -715,6 +715,29 @@ static int test_tc_segment_header_wire_limits(void)
 
     return 0;
 }
+
+static int test_tc_segment_header_rejected_on_control_command(void)
+{
+    sdlp_tc_frame_t frame;
+    sdlp_tc_frame_t before;
+    const uint8_t payload[1] = {0x01u};
+
+    /* A frame carrying a Control Command must not have a Segment Header (4.1.3.2.2.1.3):
+     * the call is refused and the frame is left as it was. */
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_create_unlock_frame(&frame, 1, 1));
+    memcpy(&before, &frame, sizeof(frame));
+    ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM,
+                  sdlp_tc_set_segment_header(&frame, TC_SEQ_FLAG_NO_SEG, 0x2Fu));
+    ASSERT_EQ_MEM(&before, &frame, sizeof(frame));
+
+    /* The other Bypass frame type, Type-BD, carries data and still accepts one. */
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_create_frame(&frame, 1, 1, 1, payload, 1));
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_set_frame_type(&frame, SDLP_TC_FRAME_TYPE_BD));
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_set_segment_header(&frame, TC_SEQ_FLAG_NO_SEG, 0x2Fu));
+    ASSERT_EQ_INT(0x2Fu, frame.segment_header.map_id);
+
+    return 0;
+}
 #endif /* TC_SEGMENT_HEADER_ENABLED */
 
 static int test_tc_decode_short_inputs(void)
@@ -773,6 +796,7 @@ test_result_t test_tc_run_all(void)
     RUN_TEST(test_tc_primary_header_wire_limits);
 #ifdef TC_SEGMENT_HEADER_ENABLED
     RUN_TEST(test_tc_segment_header_wire_limits);
+    RUN_TEST(test_tc_segment_header_rejected_on_control_command);
 #endif
     RUN_TEST(test_tc_decode_short_inputs);
 

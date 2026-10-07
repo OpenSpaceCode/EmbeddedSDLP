@@ -231,12 +231,15 @@ sdlp_status_t sdlp_tc_decode_frame(const uint8_t *buffer,
 /**
  * @brief Set the Segment Header fields on a TC frame (CCSDS 232.0-B-4 §4.1.3.2.2).
  *
- * Must not be used on frames with the Control Command Flag set (§4.1.3.2.2.1.3).
+ * The Segment Header must not be present in frames carrying Control Commands
+ * (§4.1.3.2.2.1.3), so a frame with the Control Command Flag set is rejected. On failure,
+ * @p frame is left unchanged.
  *
  * @param[in,out] frame          Target frame.
  * @param[in]     sequence_flags One of the ::sdlp_tc_seq_flag_t values.
  * @param[in]     map_id         Multiplexer Access Point Identifier (0-63).
- * @return ::SDLP_SUCCESS, or ::SDLP_ERROR_INVALID_PARAM on a NULL frame.
+ * @return ::SDLP_SUCCESS, or ::SDLP_ERROR_INVALID_PARAM on a NULL frame or a frame with the
+ *         Control Command Flag set.
  */
 sdlp_status_t sdlp_tc_set_segment_header(sdlp_tc_frame_t *frame,
                                          sdlp_tc_seq_flag_t sequence_flags,

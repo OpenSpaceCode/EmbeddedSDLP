@@ -88,7 +88,8 @@ make lib
 ### Build Examples
 
 ```bash
-make examples
+make examples   # build only
+make example    # build, then run tm_example and tc_example
 ```
 
 ### Run Tests

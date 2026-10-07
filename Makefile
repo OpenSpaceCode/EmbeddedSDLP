@@ -42,7 +42,7 @@ SEGMENT_EXAMPLE_BINS = $(patsubst $(EXAMPLES_DIR)/%.c,$(SEGMENT_DIR)/%,$(EXAMPLE
 
 LIB = $(BUILD_DIR)/libsdlp.a
 
-.PHONY: all clean examples lib unit-tests test coverage-html sanitize
+.PHONY: all clean example examples lib unit-tests test coverage-html sanitize
 
 all: lib examples
 
@@ -55,6 +55,10 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c $(PUBLIC_HEADERS) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 examples: $(EXAMPLE_BINS) $(SEGMENT_EXAMPLE_BINS)
+
+# Build the examples and run the ones linked against the library as `make lib` builds it.
+example: examples
+	@for example in $(EXAMPLE_BINS); do ./$$example || exit 1; done
 
 unit-tests: $(TEST_BIN) $(SEGMENT_TEST_BIN)
 

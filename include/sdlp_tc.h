@@ -34,6 +34,9 @@ extern "C"
  */
 #define TC_MAX_DATA_SIZE (TC_MAX_FRAME_SIZE - TC_PRIMARY_HEADER_SIZE - TC_FRAME_ERROR_CONTROL_SIZE)
 
+/** @brief Frame Length field = octets in the Transfer Frame minus this (§4.1.2.7.2). */
+#define TC_FRAME_LENGTH_OFFSET 1u
+
 /**
  * @brief TC Transfer Frame types — Bypass/Control Command Flag combinations (§table 4-1).
  *

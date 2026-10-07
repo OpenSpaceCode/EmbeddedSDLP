@@ -31,6 +31,7 @@ extern "C"
  * @{
  */
 #define TM_SECONDARY_HEADER_ID_SIZE 1   /**< Identification Field size in octets. */
+#define TM_SECONDARY_HEADER_MIN_DATA 1  /**< Minimum Secondary Header Data Field length. */
 #define TM_SECONDARY_HEADER_MAX_DATA 63 /**< Maximum Secondary Header Data Field length. */
 /** @} */
 

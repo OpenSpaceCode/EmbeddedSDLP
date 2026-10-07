@@ -98,8 +98,8 @@ static void sdlp_tm_decode_primary_header(const uint8_t *buffer, sdlp_tm_header_
 static size_t sdlp_tm_secondary_header_wire_size(const uint8_t *buffer, size_t buffer_size)
 {
     /* Need the Identification Field plus at least one Data Field octet (4.1.3.1.3). */
-    if (buffer_size <
-        (TM_PRIMARY_HEADER_SIZE + TM_SECONDARY_HEADER_ID_SIZE + 1u + TM_FRAME_ERROR_CONTROL_SIZE))
+    if (buffer_size < (TM_PRIMARY_HEADER_SIZE + TM_SECONDARY_HEADER_ID_SIZE +
+                       TM_SECONDARY_HEADER_MIN_DATA + TM_FRAME_ERROR_CONTROL_SIZE))
     {
         return 0;
     }

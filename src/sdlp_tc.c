@@ -29,7 +29,7 @@ static uint16_t tc_frame_length(const sdlp_tc_frame_t *frame)
         frame_octets += TC_SEGMENT_HEADER_SIZE;
     }
 #endif
-    return (uint16_t)(frame_octets - 1u);
+    return (uint16_t)(frame_octets - TC_FRAME_LENGTH_OFFSET);
 }
 
 /**
@@ -205,7 +205,7 @@ sdlp_status_t sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame,
 
     /* Frame Length = total octets in the emitted Transfer Frame - 1 (CCSDS 232.0-B-4,
      * 4.1.2.7.2), derived from the actual encoded size so it always matches the wire. */
-    uint16_t frame_length = (uint16_t)(required_size - 1u);
+    uint16_t frame_length = (uint16_t)(required_size - TC_FRAME_LENGTH_OFFSET);
 
     size_t offset = 0;
 
@@ -263,7 +263,7 @@ sdlp_status_t sdlp_tc_decode_frame(const uint8_t *buffer,
 
     /* Frame Validation: the Frame Length must equal the actual octet count minus one
      * (CCSDS 232.0-B-4, 4.1.2.7.2). */
-    if (((size_t)header.frame_length + 1u) != buffer_size)
+    if (((size_t)header.frame_length + TC_FRAME_LENGTH_OFFSET) != buffer_size)
     {
         return SDLP_ERROR_INVALID_FRAME;
     }

@@ -76,8 +76,7 @@ typedef struct
     uint16_t sync_flag : 1;             /**< 0 = Packets/Idle Data, 1 = VCA_SDU. */
     uint16_t packet_order_flag : 1;     /**< Reserved ('0') when sync_flag = 0. */
     uint16_t segment_length_id : 2;     /**< 2 bits; '11' when sync_flag = 0. */
-    uint16_t first_header_pointer
-        : 11; /**< 11 bits; offset of the first Packet or a special value. */
+    uint16_t first_header_pointer : 11; /**< Offset of the first Packet, or a special value. */
 } sdlp_tm_data_field_status_t;
 
 /**

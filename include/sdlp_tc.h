@@ -51,7 +51,7 @@ typedef enum
  * @brief Control Commands carried by Type-BC frames (CCSDS 232.0-B-4 §4.1.3.3).
  * @{
  */
-#define TC_CONTROL_CMD_UNLOCK 0x00u        /**< Unlock: a single 'all zeroes' octet (§4.1.3.3.2). */
+#define TC_CONTROL_CMD_UNLOCK 0x00u        /**< Unlock: one 'all zeroes' octet (§4.1.3.3.2). */
 #define TC_CONTROL_CMD_UNLOCK_LENGTH 1u    /**< Unlock command length in octets. */
 #define TC_CONTROL_CMD_SET_VR_OCTET0 0x82u /**< Set V(R) octet 0: '10000010' (§4.1.3.3.3). */
 #define TC_CONTROL_CMD_SET_VR_OCTET1 0x00u /**< Set V(R) octet 1: '00000000'. */

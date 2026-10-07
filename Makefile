@@ -23,6 +23,12 @@ SANITIZE_DIR = $(BUILD_DIR)/sanitize
 SRCS = $(wildcard $(SRC_DIR)/*.c)
 OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRCS))
 
+# Headers are prerequisites of everything that includes them, so editing one rebuilds
+# the objects, examples and tests that depend on it.
+PUBLIC_HEADERS = $(wildcard $(INC_DIR)/*.h)
+EXAMPLE_HEADERS = $(wildcard $(EXAMPLES_DIR)/*.h)
+TEST_HEADERS = $(wildcard $(TEST_DIR)/*.h)
+
 EXAMPLES = $(wildcard $(EXAMPLES_DIR)/*.c)
 EXAMPLE_BINS = $(patsubst $(EXAMPLES_DIR)/%.c,$(BIN_DIR)/%,$(EXAMPLES))
 TEST_SRCS = $(wildcard $(TEST_DIR)/*.c)
@@ -45,28 +51,28 @@ lib: $(LIB)
 $(LIB): $(OBJS)
 	ar rcs $@ $^
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c $(PUBLIC_HEADERS) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 examples: $(EXAMPLE_BINS) $(SEGMENT_EXAMPLE_BINS)
 
 unit-tests: $(TEST_BIN) $(SEGMENT_TEST_BIN)
 
-$(BIN_DIR)/%: $(EXAMPLES_DIR)/%.c $(LIB) | $(BIN_DIR)
+$(BIN_DIR)/%: $(EXAMPLES_DIR)/%.c $(EXAMPLE_HEADERS) $(PUBLIC_HEADERS) $(LIB) | $(BIN_DIR)
 	$(CC) $(CFLAGS) $< $(LIB) -o $@ $(LDFLAGS)
 
 # Segment-header configuration: the library is built without it, so its sources are
 # compiled together with each example, all with TC_SEGMENT_HEADER_ENABLED.
-$(SEGMENT_DIR)/%: $(EXAMPLES_DIR)/%.c $(SRCS) | $(SEGMENT_DIR)
+$(SEGMENT_DIR)/%: $(EXAMPLES_DIR)/%.c $(EXAMPLE_HEADERS) $(PUBLIC_HEADERS) $(SRCS) | $(SEGMENT_DIR)
 	$(CC) $(CFLAGS) -DTC_SEGMENT_HEADER_ENABLED $< $(SRCS) -o $@ $(LDFLAGS)
 
 # Default configuration: the tests link the library exactly as `make lib` builds it.
-$(TEST_BIN): $(TEST_SRCS) $(LIB) | $(BIN_DIR)
+$(TEST_BIN): $(TEST_SRCS) $(TEST_HEADERS) $(PUBLIC_HEADERS) $(LIB) | $(BIN_DIR)
 	$(CC) $(CFLAGS) $(TEST_SRCS) $(LIB) -o $@ $(LDFLAGS)
 
 # Segment-header configuration: the library is built without it, so the sources are
 # compiled together with the tests, all with TC_SEGMENT_HEADER_ENABLED.
-$(SEGMENT_TEST_BIN): $(SRCS) $(TEST_SRCS) | $(SEGMENT_DIR)
+$(SEGMENT_TEST_BIN): $(SRCS) $(TEST_SRCS) $(TEST_HEADERS) $(PUBLIC_HEADERS) | $(SEGMENT_DIR)
 	$(CC) $(CFLAGS) -DTC_SEGMENT_HEADER_ENABLED $(SRCS) $(TEST_SRCS) -o $@ $(LDFLAGS)
 
 $(BUILD_DIR):

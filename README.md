@@ -136,7 +136,7 @@ Current implementation focuses on core protocol features:
 - No SDLS (Space Data Link Security) option
 - No TM Only-Idle-Data (OID) frame generation or PN randomization
 - TM Transfer Frames are variable length; the mission-fixed frame length must be enforced by the caller
-- TM frame counts are kept per Master Channel / Virtual Channel in fixed static state (up to `TM_MAX_MASTER_CHANNELS` Master Channels; not thread-safe)
+- TM frame counts are kept per Master Channel / Virtual Channel in fixed static state (not thread-safe). At most `TM_MAX_MASTER_CHANNELS` (default 8) Spacecraft IDs are tracked; `sdlp_tm_create_frame` returns `SDLP_ERROR_NO_RESOURCE` for one more, and `sdlp_tm_reset_frame_counts` empties the table
 
 These can be extended as needed for specific mission requirements.
 

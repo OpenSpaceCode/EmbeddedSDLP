@@ -37,6 +37,20 @@ extern "C"
 #define TM_OCF_SIZE 4 /**< Operational Control Field size in octets (§4.1.5). */
 
 /**
+ * @brief Number of distinct Master Channels whose frame counts are tracked concurrently.
+ *
+ * TM Master/Virtual Channel Frame Counts are kept per Master Channel (identified by
+ * Spacecraft ID, as the Transfer Frame Version Number is fixed at 0) and, within each,
+ * per Virtual Channel (CCSDS 132.0-B-3 §4.1.2.5 and §4.1.2.6). The state lives in a
+ * fixed-size table (no dynamic allocation), so sdlp_tm_create_frame() returns
+ * ::SDLP_ERROR_NO_RESOURCE for a Spacecraft ID beyond this many. Define it when building
+ * the library to change the limit.
+ */
+#ifndef TM_MAX_MASTER_CHANNELS
+#    define TM_MAX_MASTER_CHANNELS 8
+#endif
+
+/**
  * @brief Transfer Frame Data Field Status sub-field values (CCSDS 132.0-B-3 §4.1.2.7).
  * @{
  */
@@ -132,20 +146,33 @@ void sdlp_tm_unpack_data_field_status(uint16_t raw, sdlp_tm_data_field_status_t 
  * @brief Build a TM Transfer Frame carrying a Data Field.
  *
  * Sets a standards-valid default Data Field Status (Sync Flag = 0, Segment Length
- * Identifier '11') and advances the per-Master/Virtual-Channel frame counts.
+ * Identifier '11') and advances the per-Master/Virtual-Channel frame counts. On failure,
+ * @p frame is left unchanged and no frame count advances.
  *
  * @param[out] frame              Target frame.
  * @param[in]  spacecraft_id      Spacecraft Identifier — masked to 10 bits.
  * @param[in]  virtual_channel_id Virtual Channel Identifier — masked to 3 bits.
  * @param[in]  data               Data Field content (copied into the frame).
  * @param[in]  data_length        Data Field length (0..::TM_MAX_DATA_SIZE).
- * @return ::SDLP_SUCCESS, or ::SDLP_ERROR_INVALID_PARAM on NULL args or oversized data.
+ * @return ::SDLP_SUCCESS; ::SDLP_ERROR_INVALID_PARAM on NULL args or oversized data;
+ *         ::SDLP_ERROR_NO_RESOURCE if @p spacecraft_id is a new Master Channel and
+ *         ::TM_MAX_MASTER_CHANNELS of them are already tracked.
  */
 sdlp_status_t sdlp_tm_create_frame(sdlp_tm_frame_t *frame,
                                    uint16_t spacecraft_id,
                                    uint8_t virtual_channel_id,
                                    const uint8_t *data,
                                    uint16_t data_length);
+
+/**
+ * @brief Forget every Master Channel and restart all frame counts from zero.
+ *
+ * Empties the table sdlp_tm_create_frame() uses to number frames, freeing all
+ * ::TM_MAX_MASTER_CHANNELS slots. Meant for (re-)initialisation and for tests: in normal
+ * operation a count must not be reset unless it is unavoidable (CCSDS 132.0-B-3
+ * §4.1.2.5.3 and §4.1.2.6.3). Not thread-safe.
+ */
+void sdlp_tm_reset_frame_counts(void);
 
 /**
  * @brief Attach a Transfer Frame Secondary Header (CCSDS 132.0-B-3 §4.1.3).

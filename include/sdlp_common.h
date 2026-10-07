@@ -27,7 +27,8 @@ typedef enum
     SDLP_SUCCESS = 0,                 /**< Operation completed successfully. */
     SDLP_ERROR_INVALID_PARAM = -1,    /**< NULL pointer or out-of-range argument. */
     SDLP_ERROR_BUFFER_TOO_SMALL = -2, /**< Output buffer smaller than the encoded frame. */
-    SDLP_ERROR_INVALID_FRAME = -3     /**< Malformed or inconsistent frame on decode. */
+    SDLP_ERROR_INVALID_FRAME = -3,    /**< Malformed or inconsistent frame on decode. */
+    SDLP_ERROR_NO_RESOURCE = -4       /**< A fixed-size internal table is full. */
 } sdlp_status_t;
 
 #ifdef __cplusplus

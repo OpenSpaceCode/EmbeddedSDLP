@@ -19,6 +19,17 @@
 #define TEST_TM_MAX_PLAIN_FRAME_SIZE                                                               \
     (TM_PRIMARY_HEADER_SIZE + TM_MAX_DATA_SIZE + TM_FRAME_ERROR_CONTROL_SIZE)
 
+/** @brief Byte pre-filled into outputs that a rejected call must leave untouched. */
+#define TEST_TM_SENTINEL 0xA5
+
+/** @brief Run one TM test from an empty frame-count table, so no test depends on another. */
+#define RUN_TM_TEST(fn)                                                                            \
+    do                                                                                             \
+    {                                                                                              \
+        sdlp_tm_reset_frame_counts();                                                              \
+        RUN_TEST(fn);                                                                              \
+    } while (0)
+
 static int test_tm_create_frame_invalid_params(void)
 {
     sdlp_tm_frame_t frame;
@@ -136,7 +147,7 @@ static int test_tm_frame_counts_per_channel(void)
 {
     sdlp_tm_frame_t f;
     const uint8_t payload[1] = {0xA5u};
-    const uint16_t scid_a = 0x055u; /* SCIDs not used by other tests => fresh counters */
+    const uint16_t scid_a = 0x055u;
     const uint16_t scid_b = 0x056u;
 
     /* First frame on (SCID A, VC 0): both counts start at 0. */
@@ -644,29 +655,167 @@ static int test_tm_secondary_header_length_limits(void)
     return 0;
 }
 
+/**
+ * @brief Build a frame the library must reject and check the output frame is untouched.
+ *
+ * @param[in] spacecraft_id Spacecraft Identifier to request.
+ * @param[in] data          Data Field content (may be NULL).
+ * @param[in] data_length   Data Field length in octets.
+ * @param[in] expected      Status sdlp_tm_create_frame() must return.
+ * @return 0 if the call returned @p expected and left the frame unchanged, 1 otherwise.
+ */
+static int test_tm_expect_create_rejected(uint16_t spacecraft_id,
+                                          const uint8_t *data,
+                                          uint16_t data_length,
+                                          sdlp_status_t expected)
+{
+    sdlp_tm_frame_t frame;
+    sdlp_tm_frame_t untouched;
+    const uint8_t vcid = 0;
+
+    memset(&frame, TEST_TM_SENTINEL, sizeof(frame));
+    memset(&untouched, TEST_TM_SENTINEL, sizeof(untouched));
+
+    ASSERT_EQ_INT(expected, sdlp_tm_create_frame(&frame, spacecraft_id, vcid, data, data_length));
+    ASSERT_EQ_MEM(&untouched, &frame, sizeof(frame));
+
+    return 0;
+}
+
+static int test_tm_create_failure_leaves_state_unchanged(void)
+{
+    sdlp_tm_frame_t frame;
+    const uint8_t payload[1] = {0x5Au};
+    const uint16_t payload_size = (uint16_t)sizeof(payload);
+    const uint16_t scid = 0x155u;
+    const uint8_t vcid = 0;
+
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_create_frame(&frame, scid, vcid, payload, payload_size));
+    ASSERT_EQ_INT(0, frame.header.master_channel_frame_count);
+    ASSERT_EQ_INT(0, frame.header.virtual_channel_frame_count);
+
+    ASSERT_EQ_INT(
+        0,
+        test_tm_expect_create_rejected(scid, NULL, payload_size, SDLP_ERROR_INVALID_PARAM));
+    ASSERT_EQ_INT(0,
+                  test_tm_expect_create_rejected(scid,
+                                                 payload,
+                                                 TM_MAX_DATA_SIZE + 1,
+                                                 SDLP_ERROR_INVALID_PARAM));
+
+    /* Neither rejected call consumed a count: the next frame carries the next number. */
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_create_frame(&frame, scid, vcid, payload, payload_size));
+    ASSERT_EQ_INT(1, frame.header.master_channel_frame_count);
+    ASSERT_EQ_INT(1, frame.header.virtual_channel_frame_count);
+
+    return 0;
+}
+
+static int test_tm_master_channel_table_full(void)
+{
+    sdlp_tm_frame_t frame;
+    const uint8_t payload[1] = {0x5Au};
+    const uint16_t payload_size = (uint16_t)sizeof(payload);
+    const uint16_t first_scid = 0x200u;
+    const uint16_t extra_scid = (uint16_t)(first_scid + TM_MAX_MASTER_CHANNELS);
+    const uint8_t vcid = 0;
+
+    /* A call rejected for its arguments claims no slot, however many Spacecraft IDs
+     * are tried. */
+    for (uint16_t i = 0; i <= TM_MAX_MASTER_CHANNELS; i++)
+    {
+        ASSERT_EQ_INT(0,
+                      test_tm_expect_create_rejected((uint16_t)(first_scid + i),
+                                                     NULL,
+                                                     payload_size,
+                                                     SDLP_ERROR_INVALID_PARAM));
+    }
+
+    /* Every slot can be claimed, the last one included. */
+    for (uint16_t i = 0; i < TM_MAX_MASTER_CHANNELS; i++)
+    {
+        ASSERT_EQ_INT(
+            SDLP_SUCCESS,
+            sdlp_tm_create_frame(&frame, (uint16_t)(first_scid + i), vcid, payload, payload_size));
+        ASSERT_EQ_INT(0, frame.header.master_channel_frame_count);
+    }
+
+    /* One Master Channel more is refused, not numbered with zeroes. */
+    ASSERT_EQ_INT(
+        0,
+        test_tm_expect_create_rejected(extra_scid, payload, payload_size, SDLP_ERROR_NO_RESOURCE));
+
+    /* The Master Channels already tracked keep counting. */
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tm_create_frame(&frame, first_scid, vcid, payload, payload_size));
+    ASSERT_EQ_INT(1, frame.header.master_channel_frame_count);
+    ASSERT_EQ_INT(1, frame.header.virtual_channel_frame_count);
+
+    /* A reset empties the table: the refused Master Channel is accepted, and one that was
+     * tracked before starts again from zero. */
+    sdlp_tm_reset_frame_counts();
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tm_create_frame(&frame, extra_scid, vcid, payload, payload_size));
+    ASSERT_EQ_INT(0, frame.header.master_channel_frame_count);
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tm_create_frame(&frame, first_scid, vcid, payload, payload_size));
+    ASSERT_EQ_INT(0, frame.header.master_channel_frame_count);
+    ASSERT_EQ_INT(0, frame.header.virtual_channel_frame_count);
+
+    return 0;
+}
+
+static int test_tm_frame_counts_wrap(void)
+{
+    sdlp_tm_frame_t frame;
+    const uint8_t payload[1] = {0x5Au};
+    const uint16_t payload_size = (uint16_t)sizeof(payload);
+    const uint16_t scid = 0x155u;
+    const uint8_t vcid = 3;
+
+    /* Both counts are modulo-256 (4.1.2.5.2, 4.1.2.6.2): they run from 0 to 255... */
+    for (unsigned expected = 0; expected <= UINT8_MAX; expected++)
+    {
+        ASSERT_EQ_INT(SDLP_SUCCESS,
+                      sdlp_tm_create_frame(&frame, scid, vcid, payload, payload_size));
+        ASSERT_EQ_INT(expected, frame.header.master_channel_frame_count);
+        ASSERT_EQ_INT(expected, frame.header.virtual_channel_frame_count);
+    }
+
+    /* ...and the frame after 255 is numbered 0 again. */
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_create_frame(&frame, scid, vcid, payload, payload_size));
+    ASSERT_EQ_INT(0, frame.header.master_channel_frame_count);
+    ASSERT_EQ_INT(0, frame.header.virtual_channel_frame_count);
+
+    return 0;
+}
+
 test_result_t test_tm_run_all(void)
 {
     test_result_t result;
 
-    RUN_TEST(test_tm_create_frame_invalid_params);
-    RUN_TEST(test_tm_encode_decode_roundtrip);
-    RUN_TEST(test_tm_data_field_status_codec);
-    RUN_TEST(test_tm_encode_buffer_too_small);
-    RUN_TEST(test_tm_fecf_passthrough);
-    RUN_TEST(test_tm_frame_counts_per_channel);
-    RUN_TEST(test_tm_secondary_header_roundtrip);
-    RUN_TEST(test_tm_set_secondary_header_invalid);
-    RUN_TEST(test_tm_ocf_roundtrip);
-    RUN_TEST(test_tm_secondary_header_and_ocf_roundtrip);
-    RUN_TEST(test_tm_set_ocf_invalid);
-    RUN_TEST(test_tm_null_params);
-    RUN_TEST(test_tm_decode_malformed);
-    RUN_TEST(test_tm_decode_failure_leaves_frame_unchanged);
-    RUN_TEST(test_tm_decode_data_length_beyond_16_bits);
-    RUN_TEST(test_tm_encode_max_data_exact_buffer);
-    RUN_TEST(test_tm_encode_rejects_oversized_data);
-    RUN_TEST(test_tm_encode_rejects_empty_secondary_header);
-    RUN_TEST(test_tm_secondary_header_length_limits);
+    RUN_TM_TEST(test_tm_create_frame_invalid_params);
+    RUN_TM_TEST(test_tm_encode_decode_roundtrip);
+    RUN_TM_TEST(test_tm_data_field_status_codec);
+    RUN_TM_TEST(test_tm_encode_buffer_too_small);
+    RUN_TM_TEST(test_tm_fecf_passthrough);
+    RUN_TM_TEST(test_tm_frame_counts_per_channel);
+    RUN_TM_TEST(test_tm_secondary_header_roundtrip);
+    RUN_TM_TEST(test_tm_set_secondary_header_invalid);
+    RUN_TM_TEST(test_tm_ocf_roundtrip);
+    RUN_TM_TEST(test_tm_secondary_header_and_ocf_roundtrip);
+    RUN_TM_TEST(test_tm_set_ocf_invalid);
+    RUN_TM_TEST(test_tm_null_params);
+    RUN_TM_TEST(test_tm_decode_malformed);
+    RUN_TM_TEST(test_tm_decode_failure_leaves_frame_unchanged);
+    RUN_TM_TEST(test_tm_decode_data_length_beyond_16_bits);
+    RUN_TM_TEST(test_tm_encode_max_data_exact_buffer);
+    RUN_TM_TEST(test_tm_encode_rejects_oversized_data);
+    RUN_TM_TEST(test_tm_encode_rejects_empty_secondary_header);
+    RUN_TM_TEST(test_tm_secondary_header_length_limits);
+    RUN_TM_TEST(test_tm_create_failure_leaves_state_unchanged);
+    RUN_TM_TEST(test_tm_master_channel_table_full);
+    RUN_TM_TEST(test_tm_frame_counts_wrap);
 
     /* cunit's counters have internal linkage, so this translation unit tallies
      * only its own tests. */

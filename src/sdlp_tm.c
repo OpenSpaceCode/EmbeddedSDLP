@@ -10,19 +10,6 @@
 
 #include <string.h>
 
-/**
- * @brief Number of distinct Master Channels whose frame counts are tracked concurrently.
- *
- * TM Master/Virtual Channel Frame Counts are kept per Master Channel (identified by
- * Spacecraft ID, as the Transfer Frame Version Number is fixed at 0) and, within each,
- * per Virtual Channel (CCSDS 132.0-B-3, 4.1.2.5 and 4.1.2.6). Both counts are
- * free-running modulo-256. State lives in a fixed-size table (no dynamic allocation);
- * frames for further Master Channels are emitted with zeroed counts. Not thread-safe.
- */
-#ifndef TM_MAX_MASTER_CHANNELS
-#    define TM_MAX_MASTER_CHANNELS 8
-#endif
-
 #define TM_VC_PER_MC 8 /**< TM Virtual Channels per Master Channel (VCID is 3 bits). */
 
 /**
@@ -36,7 +23,11 @@ typedef struct
     uint8_t vc_frame_count[TM_VC_PER_MC]; /**< Virtual Channel Frame Counts, indexed by VCID. */
 } tm_master_channel_t;
 
-/** @brief Fixed-size table of per-Master-Channel counter state. */
+/**
+ * @brief Fixed-size table of per-Master-Channel counter state (see ::TM_MAX_MASTER_CHANNELS).
+ *
+ * Both counts are free-running modulo-256. Not thread-safe.
+ */
 static tm_master_channel_t tm_master_channels[TM_MAX_MASTER_CHANNELS];
 
 /**
@@ -207,37 +198,41 @@ void sdlp_tm_unpack_data_field_status(uint16_t raw, sdlp_tm_data_field_status_t 
     status->first_header_pointer = (uint16_t)(raw & 0x07FFu);
 }
 
+void sdlp_tm_reset_frame_counts(void)
+{
+    memset(tm_master_channels, 0, sizeof(tm_master_channels));
+}
+
 sdlp_status_t sdlp_tm_create_frame(sdlp_tm_frame_t *frame,
                                    uint16_t spacecraft_id,
                                    uint8_t virtual_channel_id,
                                    const uint8_t *data,
                                    uint16_t data_length)
 {
-    if (!frame || !data || data_length > TM_MAX_DATA_SIZE)
+    if ((!frame) || (!data) || (data_length > TM_MAX_DATA_SIZE))
     {
         return SDLP_ERROR_INVALID_PARAM;
     }
 
-    memset(frame, 0, sizeof(sdlp_tm_frame_t));
+    const uint16_t scid = (uint16_t)(spacecraft_id & 0x3FFu);
+    const uint8_t vcid = (uint8_t)(virtual_channel_id & 0x07u);
 
-    uint16_t scid = (uint16_t)(spacecraft_id & 0x3FFu);
-    uint8_t vcid = (uint8_t)(virtual_channel_id & 0x07u);
+    /* The lookup is the last check and claims a table slot only when it succeeds, so a
+     * rejected call leaves the frame and every frame count as they were. */
     tm_master_channel_t *mc = tm_get_master_channel(scid);
+    if (!mc)
+    {
+        return SDLP_ERROR_NO_RESOURCE;
+    }
+
+    memset(frame, 0, sizeof(sdlp_tm_frame_t));
 
     frame->header.transfer_frame_version = SDLP_VERSION;
     frame->header.spacecraft_id = scid;
     frame->header.virtual_channel_id = vcid;
     frame->header.ocf_flag = 0;
-    if (mc != NULL)
-    {
-        frame->header.master_channel_frame_count = mc->mc_frame_count++;
-        frame->header.virtual_channel_frame_count = mc->vc_frame_count[vcid]++;
-    }
-    else
-    {
-        frame->header.master_channel_frame_count = 0;
-        frame->header.virtual_channel_frame_count = 0;
-    }
+    frame->header.master_channel_frame_count = mc->mc_frame_count++;
+    frame->header.virtual_channel_frame_count = mc->vc_frame_count[vcid]++;
 
     /* Default to a valid "Packets, no segmentation" Data Field Status: Sync Flag = 0
      * requires the Segment Length Identifier to be '11' (CCSDS 132.0-B-3, 4.1.2.7.5.2),

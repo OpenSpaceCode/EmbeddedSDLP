@@ -27,16 +27,41 @@
 /** @brief Scratch buffer size for rejected-encode checks: holds a frame just over the limit. */
 #define TEST_TC_SCRATCH_SIZE (2 * TC_MAX_FRAME_SIZE)
 
-static int test_tc_create_frame_invalid_params(void)
+/**
+ * @brief Build a frame the library must reject and check the output frame is untouched.
+ *
+ * @param[in] data        Data Field content (may be NULL).
+ * @param[in] data_length Data Field length in octets.
+ * @return 0 if sdlp_tc_create_frame() returned ::SDLP_ERROR_INVALID_PARAM and left the frame
+ *         unchanged, 1 otherwise.
+ */
+static int test_tc_expect_create_rejected(const uint8_t *data, uint16_t data_length)
 {
     sdlp_tc_frame_t frame;
-    uint8_t payload[1] = {0x55u};
+    sdlp_tc_frame_t untouched;
+
+    memset(&frame, 0xA5, sizeof(frame));
+    memset(&untouched, 0xA5, sizeof(untouched));
+
+    ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM,
+                  sdlp_tc_create_frame(&frame, 1, 1, 1, data, data_length));
+    ASSERT_EQ_MEM(&untouched, &frame, sizeof(frame));
+
+    return 0;
+}
+
+static int test_tc_create_frame_invalid_params(void)
+{
+    static const uint8_t payload[TC_MAX_DATA_SIZE + 1] = {0x55u};
+    /* The largest Data Field is the array, less the Segment Header octet when compiled in. */
+    const uint16_t max_data = TC_MAX_DATA_SIZE - TEST_TC_SEGMENT_OCTETS;
 
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tc_create_frame(NULL, 1, 1, 1, payload, 1));
-    ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tc_create_frame(&frame, 1, 1, 1, NULL, 1));
-    ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM,
-                  sdlp_tc_create_frame(&frame, 1, 1, 1, payload, TC_MAX_DATA_SIZE + 1));
-    ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tc_create_frame(&frame, 1, 1, 1, payload, 0));
+    ASSERT_EQ_INT(0, test_tc_expect_create_rejected(NULL, 1));
+    ASSERT_EQ_INT(0, test_tc_expect_create_rejected(payload, 0));
+    /* The first rejected length is one octet past the largest Data Field. */
+    ASSERT_EQ_INT(0, test_tc_expect_create_rejected(payload, (uint16_t)(max_data + 1)));
+    ASSERT_EQ_INT(0, test_tc_expect_create_rejected(payload, TC_MAX_DATA_SIZE + 1));
 
     return 0;
 }
@@ -78,7 +103,9 @@ static int test_tc_encode_buffer_too_small(void)
 {
     sdlp_tc_frame_t frame;
     const uint8_t payload[] = {0xABu, 0xCDu, 0xEFu};
-    uint8_t encoded[TC_PRIMARY_HEADER_SIZE + 2 + TC_FRAME_ERROR_CONTROL_SIZE];
+    /* One octet short of the encoded frame. */
+    uint8_t encoded[TC_PRIMARY_HEADER_SIZE + TEST_TC_SEGMENT_OCTETS + sizeof(payload) - 1 +
+                    TC_FRAME_ERROR_CONTROL_SIZE];
     size_t encoded_size = 0;
 
     ASSERT_EQ_INT(SDLP_SUCCESS,
@@ -108,8 +135,7 @@ static int test_tc_fecf_passthrough(void)
     ASSERT_EQ_INT(0x12u, encoded[encoded_size - 2]);
     ASSERT_EQ_INT(0x34u, encoded[encoded_size - 1]);
 
-    /* Decode no longer validates the FECF: it always succeeds and surfaces the
-     * field as-is. */
+    /* Decode does not validate the FECF: it surfaces the field as-is. */
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_decode_frame(encoded, encoded_size, &decoded));
     ASSERT_EQ_INT(0x1234u, decoded.fecf);
 
@@ -175,12 +201,16 @@ static int test_tc_frame_type_bd_roundtrip(void)
 static int test_tc_set_frame_type_invalid(void)
 {
     sdlp_tc_frame_t frame;
+    sdlp_tc_frame_t before;
     const uint8_t payload[1] = {0x01u};
 
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_create_frame(&frame, 1, 1, 1, payload, 1));
+    memcpy(&before, &frame, sizeof(frame));
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tc_set_frame_type(NULL, SDLP_TC_FRAME_TYPE_BD));
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM,
                   sdlp_tc_set_frame_type(&frame, (sdlp_tc_frame_type_t)99));
+    /* A rejected type leaves the whole frame as it was, flags and Frame Length included. */
+    ASSERT_EQ_MEM(&before, &frame, sizeof(frame));
 
     return 0;
 }
@@ -321,6 +351,8 @@ static int test_tc_segment_header_roundtrip(void)
 
     ASSERT_EQ_INT(SDLP_SUCCESS,
                   sdlp_tc_encode_frame(&frame, encoded, sizeof(encoded), &encoded_size));
+    /* On the wire: Sequence Flags '01' in the top two bits, then the MAP ID. */
+    ASSERT_EQ_INT(0x6Fu, encoded[TC_PRIMARY_HEADER_SIZE]);
     /* primary(5) + segment(1) + payload(2) + FECF(2) */
     ASSERT_EQ_INT(TC_PRIMARY_HEADER_SIZE + TC_SEGMENT_HEADER_SIZE + (int)sizeof(payload) +
                       TC_FRAME_ERROR_CONTROL_SIZE,
@@ -366,11 +398,24 @@ static int test_tc_expect_decode_rejected(const uint8_t *buffer,
 {
     sdlp_tc_frame_t frame;
     sdlp_tc_frame_t untouched;
+    uint8_t *exact = NULL;
+    sdlp_status_t status;
 
     memset(&frame, 0xA5, sizeof(frame));
     memset(&untouched, 0xA5, sizeof(untouched));
 
-    ASSERT_EQ_INT(expected, sdlp_tc_decode_frame(buffer, buffer_size, &frame));
+    /* The decoder reads a heap copy of exactly buffer_size octets, so ASan reports any
+     * read past the end of the input. */
+    if (buffer)
+    {
+        exact = malloc((buffer_size > 0u) ? buffer_size : 1u);
+        ASSERT_TRUE(exact);
+        memcpy(exact, buffer, buffer_size);
+    }
+    status = sdlp_tc_decode_frame(exact, buffer_size, &frame);
+    free(exact);
+
+    ASSERT_EQ_INT(expected, status);
     ASSERT_EQ_MEM(&untouched, &frame, sizeof(frame));
 
     return 0;
@@ -532,6 +577,175 @@ static int test_tc_encode_rejects_oversized_frame(void)
     return 0;
 }
 
+/**
+ * @brief A complete Type-BD frame with a distinct value in every field, as sent on the wire.
+ */
+static const uint8_t test_tc_golden[] = {
+    0x22u, /* Version 00, Bypass 1, Control Command 0, Reserved 00, Spacecraft ID bits 9-8 */
+    0xA5u, /* Spacecraft ID bits 7-0: the ID is 0x2A5 */
+    0x54u, /* Virtual Channel ID 0x15, Frame Length bits 9-8 */
+    TC_PRIMARY_HEADER_SIZE + TEST_TC_SEGMENT_OCTETS + 2 + TC_FRAME_ERROR_CONTROL_SIZE - 1,
+    0x9Cu, /* Frame Sequence Number */
+#ifdef TC_SEGMENT_HEADER_ENABLED
+    0xAFu, /* Sequence Flags '10' (last portion), MAP ID 0x2F */
+#endif
+    0xD1u,
+    0xD2u, /* Data Field */
+    0xFEu,
+    0xC5u /* FECF */
+};
+
+static int test_tc_golden_frame_encode(void)
+{
+    sdlp_tc_frame_t frame;
+    const uint8_t payload[] = {0xD1u, 0xD2u};
+    uint8_t encoded[sizeof(test_tc_golden)];
+    size_t encoded_size = 0;
+
+    ASSERT_EQ_INT(
+        SDLP_SUCCESS,
+        sdlp_tc_create_frame(&frame, 0x2A5u, 0x15u, 0x9Cu, payload, (uint16_t)sizeof(payload)));
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_set_frame_type(&frame, SDLP_TC_FRAME_TYPE_BD));
+#ifdef TC_SEGMENT_HEADER_ENABLED
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_set_segment_header(&frame, TC_SEQ_FLAG_LAST, 0x2Fu));
+#endif
+    frame.fecf = 0xFEC5u;
+
+    /* The buffer is exactly as long as the frame, and every octet is compared. */
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tc_encode_frame(&frame, encoded, sizeof(encoded), &encoded_size));
+    ASSERT_EQ_INT((int)sizeof(test_tc_golden), (int)encoded_size);
+    ASSERT_EQ_MEM(test_tc_golden, encoded, sizeof(test_tc_golden));
+
+    return 0;
+}
+
+static int test_tc_golden_frame_decode(void)
+{
+    sdlp_tc_frame_t decoded;
+    const uint8_t payload[] = {0xD1u, 0xD2u};
+
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tc_decode_frame(test_tc_golden, sizeof(test_tc_golden), &decoded));
+    ASSERT_EQ_INT(0, decoded.header.transfer_frame_version);
+    ASSERT_EQ_INT(1, decoded.header.bypass_flag);
+    ASSERT_EQ_INT(0, decoded.header.control_command_flag);
+    ASSERT_EQ_INT(0, decoded.header.reserved);
+    ASSERT_EQ_INT(0x2A5u, decoded.header.spacecraft_id);
+    ASSERT_EQ_INT(0x15u, decoded.header.virtual_channel_id);
+    ASSERT_EQ_INT((int)sizeof(test_tc_golden) - 1, decoded.header.frame_length);
+    ASSERT_EQ_INT(0x9Cu, decoded.header.frame_sequence_number);
+#ifdef TC_SEGMENT_HEADER_ENABLED
+    ASSERT_EQ_INT(TC_SEQ_FLAG_LAST, decoded.segment_header.sequence_flags);
+    ASSERT_EQ_INT(0x2Fu, decoded.segment_header.map_id);
+#endif
+    ASSERT_EQ_INT((int)sizeof(payload), decoded.data_length);
+    ASSERT_EQ_MEM(payload, decoded.data, sizeof(payload));
+    ASSERT_EQ_INT(0xFEC5u, decoded.fecf);
+
+    return 0;
+}
+
+static int test_tc_primary_header_wire_limits(void)
+{
+    sdlp_tc_frame_t frame;
+    sdlp_tc_frame_t decoded;
+    const uint8_t payload[1] = {0x00u};
+    uint8_t encoded[TC_MAX_FRAME_SIZE];
+    size_t encoded_size = 0;
+    /* Every field the caller sets is zero; only the Frame Length (total octets - 1) is not. */
+    const uint8_t all_zero[TC_PRIMARY_HEADER_SIZE] = {
+        0x00u,
+        0x00u,
+        0x00u,
+        TC_PRIMARY_HEADER_SIZE + TEST_TC_SEGMENT_OCTETS + 1 + TC_FRAME_ERROR_CONTROL_SIZE - 1,
+        0x00u};
+    const uint8_t all_max[TC_PRIMARY_HEADER_SIZE] = {0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu};
+
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_create_frame(&frame, 0, 0, 0, payload, 1));
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tc_encode_frame(&frame, encoded, sizeof(encoded), &encoded_size));
+    ASSERT_EQ_MEM(all_zero, encoded, sizeof(all_zero));
+
+    /* Every field at its maximum. A Type-BC frame carries no Segment Header, so a full Data
+     * Field array makes the largest frame and the Frame Length reaches 1023 as well. */
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_create_frame(&frame, 0x3FFu, 0x3Fu, 0xFFu, payload, 1));
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_set_frame_type(&frame, SDLP_TC_FRAME_TYPE_BC));
+    frame.header.transfer_frame_version = 0x03u;
+    frame.header.reserved = 0x03u;
+    frame.data_length = TC_MAX_DATA_SIZE;
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tc_encode_frame(&frame, encoded, sizeof(encoded), &encoded_size));
+    ASSERT_EQ_MEM(all_max, encoded, sizeof(all_max));
+
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_decode_frame(encoded, encoded_size, &decoded));
+    ASSERT_EQ_INT(0x03u, decoded.header.transfer_frame_version);
+    ASSERT_EQ_INT(1, decoded.header.bypass_flag);
+    ASSERT_EQ_INT(1, decoded.header.control_command_flag);
+    ASSERT_EQ_INT(0x03u, decoded.header.reserved);
+    ASSERT_EQ_INT(0x3FFu, decoded.header.spacecraft_id);
+    ASSERT_EQ_INT(0x3Fu, decoded.header.virtual_channel_id);
+    ASSERT_EQ_INT(TC_MAX_FRAME_SIZE - 1, decoded.header.frame_length);
+    ASSERT_EQ_INT(0xFFu, decoded.header.frame_sequence_number);
+
+    return 0;
+}
+
+#ifdef TC_SEGMENT_HEADER_ENABLED
+static int test_tc_segment_header_wire_limits(void)
+{
+    sdlp_tc_frame_t frame;
+    const uint8_t payload[1] = {0x00u};
+    uint8_t
+        encoded[TC_PRIMARY_HEADER_SIZE + TC_SEGMENT_HEADER_SIZE + 1 + TC_FRAME_ERROR_CONTROL_SIZE];
+    size_t encoded_size = 0;
+
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_create_frame(&frame, 1, 1, 1, payload, 1));
+
+    /* Both fields zero, then both at their maximum: the octet right after the primary header. */
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_set_segment_header(&frame, TC_SEQ_FLAG_CONTINUE, 0));
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tc_encode_frame(&frame, encoded, sizeof(encoded), &encoded_size));
+    ASSERT_EQ_INT(0x00u, encoded[TC_PRIMARY_HEADER_SIZE]);
+
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_set_segment_header(&frame, TC_SEQ_FLAG_NO_SEG, 0x3Fu));
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tc_encode_frame(&frame, encoded, sizeof(encoded), &encoded_size));
+    ASSERT_EQ_INT(0xFFu, encoded[TC_PRIMARY_HEADER_SIZE]);
+
+    return 0;
+}
+#endif /* TC_SEGMENT_HEADER_ENABLED */
+
+static int test_tc_decode_short_inputs(void)
+{
+    static const uint8_t zeros[TC_PRIMARY_HEADER_SIZE + TC_FRAME_ERROR_CONTROL_SIZE] = {0};
+    /* The shortest frame: a Type-BC header (so no Segment Header), no data, and the FECF. */
+    const uint8_t shortest[TC_PRIMARY_HEADER_SIZE + TC_FRAME_ERROR_CONTROL_SIZE] =
+        {0x30u, 0x00u, 0x00u, TC_PRIMARY_HEADER_SIZE + TC_FRAME_ERROR_CONTROL_SIZE - 1};
+    sdlp_tc_frame_t decoded;
+    uint8_t *exact;
+    sdlp_status_t status;
+
+    /* Every length below a primary header plus the FECF is rejected. */
+    for (size_t length = 0; length < sizeof(zeros); length++)
+    {
+        ASSERT_EQ_INT(0, test_tc_expect_decode_rejected(zeros, length, SDLP_ERROR_INVALID_PARAM));
+    }
+
+    /* Exactly that length is the first one accepted, read from an exact-size heap buffer. */
+    exact = malloc(sizeof(shortest));
+    ASSERT_TRUE(exact);
+    memcpy(exact, shortest, sizeof(shortest));
+    status = sdlp_tc_decode_frame(exact, sizeof(shortest), &decoded);
+    free(exact);
+    ASSERT_EQ_INT(SDLP_SUCCESS, status);
+    ASSERT_EQ_INT(1, decoded.header.control_command_flag);
+    ASSERT_EQ_INT(0, decoded.data_length);
+
+    return 0;
+}
+
 test_result_t test_tc_run_all(void)
 {
     test_result_t result;
@@ -554,6 +768,13 @@ test_result_t test_tc_run_all(void)
     RUN_TEST(test_tc_decode_failure_leaves_frame_unchanged);
     RUN_TEST(test_tc_encode_max_frame_exact_buffer);
     RUN_TEST(test_tc_encode_rejects_oversized_frame);
+    RUN_TEST(test_tc_golden_frame_encode);
+    RUN_TEST(test_tc_golden_frame_decode);
+    RUN_TEST(test_tc_primary_header_wire_limits);
+#ifdef TC_SEGMENT_HEADER_ENABLED
+    RUN_TEST(test_tc_segment_header_wire_limits);
+#endif
+    RUN_TEST(test_tc_decode_short_inputs);
 
     /* cunit's counters have internal linkage, so this translation unit tallies
      * only its own tests. */

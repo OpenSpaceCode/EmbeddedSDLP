@@ -14,13 +14,15 @@ static int cunit_total_tests = 0;
 #define ASSERT_EQ_INT(expected, actual)                                                            \
     do                                                                                             \
     {                                                                                              \
-        if ((int)(expected) != (int)(actual))                                                      \
+        const int cunit_expected = (int)(expected);                                                \
+        const int cunit_actual = (int)(actual);                                                    \
+        if (cunit_expected != cunit_actual)                                                        \
         {                                                                                          \
             printf("ASSERT_EQ_INT failed: %s:%d: expected %d got %d\n",                            \
                    __FILE__,                                                                       \
                    __LINE__,                                                                       \
-                   (int)(expected),                                                                \
-                   (int)(actual));                                                                 \
+                   cunit_expected,                                                                 \
+                   cunit_actual);                                                                  \
             return 1;                                                                              \
         }                                                                                          \
     } while (0)

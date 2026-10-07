@@ -135,8 +135,7 @@ static int test_tm_fecf_passthrough(void)
     ASSERT_EQ_INT(0xABu, encoded[encoded_size - 2]);
     ASSERT_EQ_INT(0xCDu, encoded[encoded_size - 1]);
 
-    /* Decode no longer validates the FECF: it always succeeds and surfaces the
-     * field as-is. */
+    /* Decode does not validate the FECF: it surfaces the field as-is. */
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_decode_frame(encoded, encoded_size, &decoded));
     ASSERT_EQ_INT(0xABCDu, decoded.fecf);
 
@@ -211,17 +210,19 @@ static int test_tm_secondary_header_roundtrip(void)
 static int test_tm_set_secondary_header_invalid(void)
 {
     sdlp_tm_frame_t frame;
+    sdlp_tm_frame_t before;
     const uint8_t payload[1] = {0x01u};
-    const uint8_t sh_data[1] = {0xFFu};
+    const uint8_t sh_data[TM_SECONDARY_HEADER_MAX_DATA + 1] = {0xFFu};
 
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_create_frame(&frame, 1, 0, payload, 1));
+    memcpy(&before, &frame, sizeof(frame));
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tm_set_secondary_header(NULL, sh_data, 1));
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tm_set_secondary_header(&frame, NULL, 1));
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tm_set_secondary_header(&frame, sh_data, 0));
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM,
                   sdlp_tm_set_secondary_header(&frame, sh_data, TM_SECONDARY_HEADER_MAX_DATA + 1));
-    /* A rejected call must leave the Secondary Header Flag clear. */
-    ASSERT_EQ_INT(0, frame.header.transfer_frame_data_field_status.secondary_header_flag);
+    /* A rejected call leaves the whole frame as it was, the Secondary Header Flag included. */
+    ASSERT_EQ_MEM(&before, &frame, sizeof(frame));
 
     return 0;
 }
@@ -300,14 +301,16 @@ static int test_tm_secondary_header_and_ocf_roundtrip(void)
 static int test_tm_set_ocf_invalid(void)
 {
     sdlp_tm_frame_t frame;
+    sdlp_tm_frame_t before;
     const uint8_t payload[1] = {0x01u};
     const uint8_t ocf[TM_OCF_SIZE] = {0};
 
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_create_frame(&frame, 1, 0, payload, 1));
+    memcpy(&before, &frame, sizeof(frame));
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tm_set_ocf(NULL, ocf));
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tm_set_ocf(&frame, NULL));
-    /* A rejected call must leave the OCF Flag clear. */
-    ASSERT_EQ_INT(0, frame.header.ocf_flag);
+    /* A rejected call leaves the whole frame as it was, the OCF Flag included. */
+    ASSERT_EQ_MEM(&before, &frame, sizeof(frame));
 
     return 0;
 }
@@ -397,11 +400,24 @@ static int test_tm_expect_decode_rejected(const uint8_t *buffer,
 {
     sdlp_tm_frame_t frame;
     sdlp_tm_frame_t untouched;
+    uint8_t *exact = NULL;
+    sdlp_status_t status;
 
     memset(&frame, 0xA5, sizeof(frame));
     memset(&untouched, 0xA5, sizeof(untouched));
 
-    ASSERT_EQ_INT(expected, sdlp_tm_decode_frame(buffer, buffer_size, &frame));
+    /* The decoder reads a heap copy of exactly buffer_size octets, so ASan reports any
+     * read past the end of the input. */
+    if (buffer)
+    {
+        exact = malloc((buffer_size > 0u) ? buffer_size : 1u);
+        ASSERT_TRUE(exact);
+        memcpy(exact, buffer, buffer_size);
+    }
+    status = sdlp_tm_decode_frame(exact, buffer_size, &frame);
+    free(exact);
+
+    ASSERT_EQ_INT(expected, status);
     ASSERT_EQ_MEM(&untouched, &frame, sizeof(frame));
 
     return 0;
@@ -790,6 +806,198 @@ static int test_tm_frame_counts_wrap(void)
     return 0;
 }
 
+/**
+ * @brief A complete TM frame with a distinct value in every field, as sent on the wire.
+ */
+static const uint8_t test_tm_golden[] = {
+    0x2Au, /* Version 00, Spacecraft ID bits 9-4: the ID is 0x2A5 */
+    0x5Bu, /* Spacecraft ID bits 3-0, Virtual Channel ID 5, OCF Flag 1 */
+    0x12u, /* Master Channel Frame Count */
+    0x34u, /* Virtual Channel Frame Count */
+    0x99u, /* Secondary Header Flag 1, Segment Length ID '11', First Header Pointer bits 10-8 */
+    0x23u, /* First Header Pointer bits 7-0: the pointer is 0x123 */
+    0x02u, /* Secondary Header: Version 00, Length 2 */
+    0x51u,
+    0x52u, /* Secondary Header Data Field */
+    0xD1u,
+    0xD2u, /* Data Field */
+    0xC1u,
+    0xC2u,
+    0xC3u,
+    0xC4u, /* Operational Control Field */
+    0xFEu,
+    0xC5u /* FECF */
+};
+
+static int test_tm_golden_frame_encode(void)
+{
+    sdlp_tm_frame_t frame;
+    const uint8_t payload[] = {0xD1u, 0xD2u};
+    const uint8_t sh_data[] = {0x51u, 0x52u};
+    const uint8_t ocf[TM_OCF_SIZE] = {0xC1u, 0xC2u, 0xC3u, 0xC4u};
+    uint8_t encoded[sizeof(test_tm_golden)];
+    size_t encoded_size = 0;
+
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tm_create_frame(&frame, 0x2A5u, 5, payload, (uint16_t)sizeof(payload)));
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tm_set_secondary_header(&frame, sh_data, (uint8_t)sizeof(sh_data)));
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_set_ocf(&frame, ocf));
+    frame.header.master_channel_frame_count = 0x12u;
+    frame.header.virtual_channel_frame_count = 0x34u;
+    frame.header.transfer_frame_data_field_status.first_header_pointer = 0x123u;
+    frame.fecf = 0xFEC5u;
+
+    /* The buffer is exactly as long as the frame, and every octet is compared. */
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tm_encode_frame(&frame, encoded, sizeof(encoded), &encoded_size));
+    ASSERT_EQ_INT((int)sizeof(test_tm_golden), (int)encoded_size);
+    ASSERT_EQ_MEM(test_tm_golden, encoded, sizeof(test_tm_golden));
+
+    return 0;
+}
+
+static int test_tm_golden_frame_decode(void)
+{
+    sdlp_tm_frame_t decoded;
+    const sdlp_tm_data_field_status_t *status = &decoded.header.transfer_frame_data_field_status;
+    const uint8_t payload[] = {0xD1u, 0xD2u};
+    const uint8_t sh_data[] = {0x51u, 0x52u};
+    const uint8_t ocf[TM_OCF_SIZE] = {0xC1u, 0xC2u, 0xC3u, 0xC4u};
+
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tm_decode_frame(test_tm_golden, sizeof(test_tm_golden), &decoded));
+    ASSERT_EQ_INT(0, decoded.header.transfer_frame_version);
+    ASSERT_EQ_INT(0x2A5u, decoded.header.spacecraft_id);
+    ASSERT_EQ_INT(5, decoded.header.virtual_channel_id);
+    ASSERT_EQ_INT(1, decoded.header.ocf_flag);
+    ASSERT_EQ_INT(0x12u, decoded.header.master_channel_frame_count);
+    ASSERT_EQ_INT(0x34u, decoded.header.virtual_channel_frame_count);
+    ASSERT_EQ_INT(1, status->secondary_header_flag);
+    ASSERT_EQ_INT(0, status->sync_flag);
+    ASSERT_EQ_INT(0, status->packet_order_flag);
+    ASSERT_EQ_INT(TM_SEGMENT_LENGTH_ID_NO_SEGMENTATION, status->segment_length_id);
+    ASSERT_EQ_INT(0x123u, status->first_header_pointer);
+    ASSERT_EQ_INT((int)sizeof(sh_data), decoded.secondary_header.length);
+    ASSERT_EQ_MEM(sh_data, decoded.secondary_header.data, sizeof(sh_data));
+    ASSERT_EQ_INT((int)sizeof(payload), decoded.data_length);
+    ASSERT_EQ_MEM(payload, decoded.data, sizeof(payload));
+    ASSERT_EQ_MEM(ocf, decoded.ocf, sizeof(ocf));
+    ASSERT_EQ_INT(0xFEC5u, decoded.fecf);
+
+    return 0;
+}
+
+static int test_tm_primary_header_all_zero(void)
+{
+    sdlp_tm_frame_t frame;
+    const uint8_t payload[1] = {0x00u};
+    const uint8_t all_zero[TM_PRIMARY_HEADER_SIZE] = {0};
+    uint8_t encoded[TM_PRIMARY_HEADER_SIZE + 1 + TM_FRAME_ERROR_CONTROL_SIZE];
+    size_t encoded_size = 0;
+
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_create_frame(&frame, 0, 0, payload, 1));
+    /* The default Segment Length Identifier is '11'; it is cleared to put every bit at zero. */
+    frame.header.transfer_frame_data_field_status.segment_length_id = 0;
+
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tm_encode_frame(&frame, encoded, sizeof(encoded), &encoded_size));
+    ASSERT_EQ_MEM(all_zero, encoded, sizeof(all_zero));
+
+    return 0;
+}
+
+static int test_tm_primary_header_all_max(void)
+{
+    sdlp_tm_frame_t frame;
+    sdlp_tm_frame_t decoded;
+    sdlp_tm_data_field_status_t *status = &frame.header.transfer_frame_data_field_status;
+    const uint8_t octets[TM_OCF_SIZE] = {0};
+    const uint8_t all_max[TM_PRIMARY_HEADER_SIZE] = {0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu};
+    uint8_t encoded[TM_PRIMARY_HEADER_SIZE + TM_SECONDARY_HEADER_ID_SIZE + 1 + 1 + TM_OCF_SIZE +
+                    TM_FRAME_ERROR_CONTROL_SIZE];
+    size_t encoded_size = 0;
+
+    /* Both optional fields are attached, which raises their flags; the rest is set by hand. */
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_create_frame(&frame, 0x3FFu, 7, octets, 1));
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_set_secondary_header(&frame, octets, 1));
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_set_ocf(&frame, octets));
+    frame.header.transfer_frame_version = 0x03u;
+    frame.header.master_channel_frame_count = 0xFFu;
+    frame.header.virtual_channel_frame_count = 0xFFu;
+    status->sync_flag = 1;
+    status->packet_order_flag = 1;
+    status->first_header_pointer = 0x7FFu;
+
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tm_encode_frame(&frame, encoded, sizeof(encoded), &encoded_size));
+    ASSERT_EQ_INT((int)sizeof(encoded), (int)encoded_size);
+    ASSERT_EQ_MEM(all_max, encoded, sizeof(all_max));
+
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_decode_frame(encoded, encoded_size, &decoded));
+    status = &decoded.header.transfer_frame_data_field_status;
+    ASSERT_EQ_INT(0x03u, decoded.header.transfer_frame_version);
+    ASSERT_EQ_INT(0x3FFu, decoded.header.spacecraft_id);
+    ASSERT_EQ_INT(7, decoded.header.virtual_channel_id);
+    ASSERT_EQ_INT(1, decoded.header.ocf_flag);
+    ASSERT_EQ_INT(0xFFu, decoded.header.master_channel_frame_count);
+    ASSERT_EQ_INT(0xFFu, decoded.header.virtual_channel_frame_count);
+    ASSERT_EQ_INT(1, status->secondary_header_flag);
+    ASSERT_EQ_INT(1, status->sync_flag);
+    ASSERT_EQ_INT(1, status->packet_order_flag);
+    ASSERT_EQ_INT(0x03u, status->segment_length_id);
+    ASSERT_EQ_INT(0x7FFu, status->first_header_pointer);
+
+    return 0;
+}
+
+static int test_tm_empty_data_field_roundtrip(void)
+{
+    sdlp_tm_frame_t frame;
+    sdlp_tm_frame_t decoded;
+    const uint8_t unused[1] = {0x00u};
+    uint8_t encoded[TM_PRIMARY_HEADER_SIZE + TM_FRAME_ERROR_CONTROL_SIZE];
+    size_t encoded_size = 0;
+
+    /* A Data Field of zero octets is the smallest length sdlp_tm_create_frame() accepts. */
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_create_frame(&frame, 1, 0, unused, 0));
+    ASSERT_EQ_INT(0, frame.data_length);
+
+    ASSERT_EQ_INT(SDLP_SUCCESS,
+                  sdlp_tm_encode_frame(&frame, encoded, sizeof(encoded), &encoded_size));
+    ASSERT_EQ_INT((int)sizeof(encoded), (int)encoded_size);
+
+    ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_decode_frame(encoded, encoded_size, &decoded));
+    ASSERT_EQ_INT(0, decoded.data_length);
+
+    return 0;
+}
+
+static int test_tm_decode_short_inputs(void)
+{
+    static const uint8_t zeros[TM_PRIMARY_HEADER_SIZE + TM_FRAME_ERROR_CONTROL_SIZE] = {0};
+    sdlp_tm_frame_t decoded;
+    uint8_t *exact;
+    sdlp_status_t status;
+
+    /* Every length below a primary header plus the FECF is rejected. */
+    for (size_t length = 0; length < sizeof(zeros); length++)
+    {
+        ASSERT_EQ_INT(0, test_tm_expect_decode_rejected(zeros, length, SDLP_ERROR_INVALID_PARAM));
+    }
+
+    /* Exactly that length is the first one accepted, read from an exact-size heap buffer. */
+    exact = malloc(sizeof(zeros));
+    ASSERT_TRUE(exact);
+    memcpy(exact, zeros, sizeof(zeros));
+    status = sdlp_tm_decode_frame(exact, sizeof(zeros), &decoded);
+    free(exact);
+    ASSERT_EQ_INT(SDLP_SUCCESS, status);
+    ASSERT_EQ_INT(0, decoded.data_length);
+
+    return 0;
+}
+
 test_result_t test_tm_run_all(void)
 {
     test_result_t result;
@@ -816,6 +1024,12 @@ test_result_t test_tm_run_all(void)
     RUN_TM_TEST(test_tm_create_failure_leaves_state_unchanged);
     RUN_TM_TEST(test_tm_master_channel_table_full);
     RUN_TM_TEST(test_tm_frame_counts_wrap);
+    RUN_TM_TEST(test_tm_golden_frame_encode);
+    RUN_TM_TEST(test_tm_golden_frame_decode);
+    RUN_TM_TEST(test_tm_primary_header_all_zero);
+    RUN_TM_TEST(test_tm_primary_header_all_max);
+    RUN_TM_TEST(test_tm_empty_data_field_roundtrip);
+    RUN_TM_TEST(test_tm_decode_short_inputs);
 
     /* cunit's counters have internal linkage, so this translation unit tallies
      * only its own tests. */

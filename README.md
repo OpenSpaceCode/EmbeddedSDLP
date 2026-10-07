@@ -53,9 +53,6 @@ EmbeddedSDLP/
 │   └── unit_tests.c     # Test entry point (aggregates per-module results)
 ├── tools/
 │   └── coverage_html.sh # Coverage (HTML) report generator
-├── docs/
-│   ├── 132x0b3_TM_SDLP.pdf   # CCSDS 132.0-B-3 standard
-│   └── 232x0b4e1c1_TC_SDLP.pdf # CCSDS 232.0-B-4 standard
 ├── Makefile
 └── README.md
 ```
@@ -167,8 +164,8 @@ These can be extended as needed for specific mission requirements.
 
 ## References
 
-- CCSDS 132.0-B-3: TM Space Data Link Protocol ([docs/132x0b3_TM_SDLP.pdf](docs/132x0b3_TM_SDLP.pdf))
-- CCSDS 232.0-B-4: TC Space Data Link Protocol ([docs/232x0b4e1c1_TC_SDLP.pdf](docs/232x0b4e1c1_TC_SDLP.pdf))
+- [CCSDS 132.0-B-3: TM Space Data Link Protocol](https://public.ccsds.org/Pubs/132x0b3.pdf)
+- [CCSDS 232.0-B-4: TC Space Data Link Protocol](https://public.ccsds.org/Pubs/232x0b4e1c1.pdf)
 
 ## License
 

@@ -78,7 +78,7 @@ int main(void)
 
     printf("Encoded frame size: %zu bytes\n", encoded_size);
     printf("Frame bytes: ");
-    for (size_t i = 0; i < encoded_size && i < 20; i++)
+    for (size_t i = 0; (i < encoded_size) && (i < 20); i++)
     {
         printf("%02X ", buffer[i]);
     }

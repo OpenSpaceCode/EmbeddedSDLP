@@ -41,7 +41,8 @@ static tm_master_channel_t *tm_get_master_channel(uint16_t spacecraft_id)
 {
     for (size_t i = 0; i < TM_MAX_MASTER_CHANNELS; i++)
     {
-        if (tm_master_channels[i].in_use && tm_master_channels[i].spacecraft_id == spacecraft_id)
+        if ((tm_master_channels[i].in_use) &&
+            (tm_master_channels[i].spacecraft_id == spacecraft_id))
         {
             return &tm_master_channels[i];
         }
@@ -252,7 +253,7 @@ sdlp_status_t sdlp_tm_set_secondary_header(sdlp_tm_frame_t *frame,
                                            const uint8_t *data,
                                            uint8_t length)
 {
-    if (!frame || !data || length == 0u || length > TM_SECONDARY_HEADER_MAX_DATA)
+    if ((!frame) || (!data) || (length == 0u) || (length > TM_SECONDARY_HEADER_MAX_DATA))
     {
         return SDLP_ERROR_INVALID_PARAM;
     }
@@ -267,7 +268,7 @@ sdlp_status_t sdlp_tm_set_secondary_header(sdlp_tm_frame_t *frame,
 
 sdlp_status_t sdlp_tm_set_ocf(sdlp_tm_frame_t *frame, const uint8_t ocf[TM_OCF_SIZE])
 {
-    if (!frame || !ocf)
+    if ((!frame) || (!ocf))
     {
         return SDLP_ERROR_INVALID_PARAM;
     }

@@ -66,7 +66,7 @@ sdlp_status_t sdlp_tc_create_frame(sdlp_tc_frame_t *frame,
     max_data -= TC_SEGMENT_HEADER_SIZE;
 #endif
 
-    if (!frame || !data || data_length == 0u || data_length > max_data)
+    if ((!frame) || (!data) || (data_length == 0u) || (data_length > max_data))
     {
         return SDLP_ERROR_INVALID_PARAM;
     }
@@ -175,7 +175,7 @@ sdlp_status_t sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame,
                                    size_t buffer_size,
                                    size_t *encoded_size)
 {
-    if (!frame || !buffer || !encoded_size)
+    if ((!frame) || (!buffer) || (!encoded_size))
     {
         return SDLP_ERROR_INVALID_PARAM;
     }

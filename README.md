@@ -31,6 +31,9 @@ Minimal, embedded-optimized implementation of **CCSDS Space Data Link Protocol (
 
 ```
 EmbeddedSDLP/
+├── .github/
+│   └── workflows/
+│       └── ci.yml       # CI: unit tests, coverage gate, sanitizers
 ├── include/
 │   ├── sdlp_common.h    # Common definitions and error codes
 │   ├── sdlp_tm.h        # TM frame definitions

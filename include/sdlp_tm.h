@@ -189,9 +189,9 @@ void sdlp_tm_reset_frame_counts(void);
  * Raises the Secondary Header Flag and copies @p length octets of Data Field
  * content; the Version Number is set to '00'.
  *
- * @param[out] frame  Target frame.
- * @param[in]  data   Secondary Header Data Field content (copied).
- * @param[in]  length Data Field length (1..::TM_SECONDARY_HEADER_MAX_DATA).
+ * @param[in,out] frame  Target frame.
+ * @param[in]     data   Secondary Header Data Field content (copied).
+ * @param[in]     length Data Field length (1..::TM_SECONDARY_HEADER_MAX_DATA).
  * @return ::SDLP_SUCCESS, or ::SDLP_ERROR_INVALID_PARAM on NULL args or bad length.
  */
 sdlp_status_t sdlp_tm_set_secondary_header(sdlp_tm_frame_t *frame,
@@ -205,8 +205,8 @@ sdlp_status_t sdlp_tm_set_secondary_header(sdlp_tm_frame_t *frame,
  * CLCW or an SDLS report) is mission-specific. Leave this unset to emit a frame
  * with no OCF.
  *
- * @param[out] frame Target frame.
- * @param[in]  ocf   Four octets of OCF content (copied).
+ * @param[in,out] frame Target frame.
+ * @param[in]     ocf   Four octets of OCF content (copied).
  * @return ::SDLP_SUCCESS, or ::SDLP_ERROR_INVALID_PARAM on NULL args.
  */
 sdlp_status_t sdlp_tm_set_ocf(sdlp_tm_frame_t *frame, const uint8_t ocf[TM_OCF_SIZE]);

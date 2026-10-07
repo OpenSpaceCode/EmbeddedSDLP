@@ -21,14 +21,14 @@ typedef struct
     uint16_t spacecraft_id;               /**< Master Channel ID (Spacecraft Identifier). */
     uint8_t mc_frame_count;               /**< Master Channel Frame Count (modulo-256). */
     uint8_t vc_frame_count[TM_VC_PER_MC]; /**< Virtual Channel Frame Counts, indexed by VCID. */
-} tm_master_channel_t;
+} sdlp_tm_master_channel_t;
 
 /**
  * @brief Fixed-size table of per-Master-Channel counter state (see ::TM_MAX_MASTER_CHANNELS).
  *
  * Both counts are free-running modulo-256. Not thread-safe.
  */
-static tm_master_channel_t tm_master_channels[TM_MAX_MASTER_CHANNELS];
+static sdlp_tm_master_channel_t sdlp_tm_master_channels[TM_MAX_MASTER_CHANNELS];
 
 /**
  * @brief Return the counter state for a Master Channel, allocating a slot on first use.
@@ -37,27 +37,27 @@ static tm_master_channel_t tm_master_channels[TM_MAX_MASTER_CHANNELS];
  * @return Pointer to the channel's counters, or NULL if the table is already full of
  *         other Master Channels.
  */
-static tm_master_channel_t *tm_get_master_channel(uint16_t spacecraft_id)
+static sdlp_tm_master_channel_t *sdlp_tm_get_master_channel(uint16_t spacecraft_id)
 {
     for (size_t i = 0; i < TM_MAX_MASTER_CHANNELS; i++)
     {
-        if ((tm_master_channels[i].in_use) &&
-            (tm_master_channels[i].spacecraft_id == spacecraft_id))
+        if ((sdlp_tm_master_channels[i].in_use) &&
+            (sdlp_tm_master_channels[i].spacecraft_id == spacecraft_id))
         {
-            return &tm_master_channels[i];
+            return &sdlp_tm_master_channels[i];
         }
     }
     for (size_t i = 0; i < TM_MAX_MASTER_CHANNELS; i++)
     {
-        if (!tm_master_channels[i].in_use)
+        if (!sdlp_tm_master_channels[i].in_use)
         {
-            tm_master_channels[i].in_use = 1;
-            tm_master_channels[i].spacecraft_id = spacecraft_id;
-            tm_master_channels[i].mc_frame_count = 0;
-            memset(tm_master_channels[i].vc_frame_count,
+            sdlp_tm_master_channels[i].in_use = 1;
+            sdlp_tm_master_channels[i].spacecraft_id = spacecraft_id;
+            sdlp_tm_master_channels[i].mc_frame_count = 0;
+            memset(sdlp_tm_master_channels[i].vc_frame_count,
                    0,
-                   sizeof(tm_master_channels[i].vc_frame_count));
-            return &tm_master_channels[i];
+                   sizeof(sdlp_tm_master_channels[i].vc_frame_count));
+            return &sdlp_tm_master_channels[i];
         }
     }
     return NULL;
@@ -201,7 +201,7 @@ void sdlp_tm_unpack_data_field_status(uint16_t raw, sdlp_tm_data_field_status_t 
 
 void sdlp_tm_reset_frame_counts(void)
 {
-    memset(tm_master_channels, 0, sizeof(tm_master_channels));
+    memset(sdlp_tm_master_channels, 0, sizeof(sdlp_tm_master_channels));
 }
 
 sdlp_status_t sdlp_tm_create_frame(sdlp_tm_frame_t *frame,
@@ -217,7 +217,7 @@ sdlp_status_t sdlp_tm_create_frame(sdlp_tm_frame_t *frame,
 
     /* The lookup is the last check and claims a table slot only when it succeeds, so a
      * rejected call leaves the frame and every frame count as they were. */
-    tm_master_channel_t *mc = tm_get_master_channel((uint16_t)(spacecraft_id & 0x3FFu));
+    sdlp_tm_master_channel_t *mc = sdlp_tm_get_master_channel((uint16_t)(spacecraft_id & 0x3FFu));
     if (!mc)
     {
         return SDLP_ERROR_NO_RESOURCE;

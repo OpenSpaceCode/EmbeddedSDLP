@@ -19,7 +19,7 @@
  * @param[in] frame Frame whose current fields determine the emitted size.
  * @return The 10-bit Frame Length value.
  */
-static uint16_t tc_frame_length(const sdlp_tc_frame_t *frame)
+static uint16_t sdlp_tc_frame_length(const sdlp_tc_frame_t *frame)
 {
     size_t frame_octets =
         (size_t)TC_PRIMARY_HEADER_SIZE + frame->data_length + TC_FRAME_ERROR_CONTROL_SIZE;
@@ -86,7 +86,7 @@ sdlp_status_t sdlp_tc_create_frame(sdlp_tc_frame_t *frame,
 
     /* sdlp_tc_encode_frame recomputes the Frame Length from the bytes it actually
      * emits; it is set here so the struct is self-consistent. */
-    frame->header.frame_length = (uint16_t)(tc_frame_length(frame) & 0x03FFu);
+    frame->header.frame_length = (uint16_t)(sdlp_tc_frame_length(frame) & 0x03FFu);
 
     return SDLP_SUCCESS;
 }
@@ -118,7 +118,7 @@ sdlp_status_t sdlp_tc_set_frame_type(sdlp_tc_frame_t *frame, sdlp_tc_frame_type_
 
     /* The Segment Header is absent from Type-BC frames, so the frame type affects
      * the total frame size when segment headers are compiled in. */
-    frame->header.frame_length = (uint16_t)(tc_frame_length(frame) & 0x03FFu);
+    frame->header.frame_length = (uint16_t)(sdlp_tc_frame_length(frame) & 0x03FFu);
 
     return SDLP_SUCCESS;
 }

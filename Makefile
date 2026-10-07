@@ -1,5 +1,6 @@
 CC ?= cc
-# Optimisation / instrumentation flags; overridden by the sanitize target
+# Optimisation / instrumentation flags; overridden by the sanitize target and by
+# tools/coverage_html.sh
 OPT ?= -O2
 SANITIZE_OPT = -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined \
 			   -fno-sanitize-recover=all

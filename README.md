@@ -106,6 +106,9 @@ Generate coverage report:
 make coverage-html
 ```
 
+The command fails unless line and branch coverage of `src/` are both 100%. It rebuilds the
+unit tests from scratch with the Makefile's own flags plus coverage instrumentation.
+
 Output report:
 
 ```text

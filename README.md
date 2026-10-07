@@ -24,13 +24,16 @@ Minimal, embedded-optimized implementation of **CCSDS Space Data Link Protocol (
 
 - **Minimal footprint**: Small library size (stripped)
 - **Zero allocation**: Stack-based, no dynamic memory
-- **Embedded-optimized**: Pure C11, no external dependencies
-- **Portable**: Standard C11, big-endian network byte order
+- **Embedded-optimized**: Pure C99, no external dependencies
+- **Portable**: Standard C99, big-endian network byte order
 
 ## Project Structure
 
 ```
 EmbeddedSDLP/
+├── .github/
+│   └── workflows/
+│       └── ci.yml       # CI: unit tests, coverage gate, sanitizers
 ├── include/
 │   ├── sdlp_common.h    # Common definitions and error codes
 │   ├── sdlp_tm.h        # TM frame definitions
@@ -50,14 +53,14 @@ EmbeddedSDLP/
 │   └── unit_tests.c     # Test entry point (aggregates per-module results)
 ├── tools/
 │   └── coverage_html.sh # Coverage (HTML) report generator
-├── docs/
-│   ├── 132x0b3_TM_SDLP.pdf   # CCSDS 132.0-B-3 standard
-│   └── 232x0b4e1c1_TC_SDLP.pdf # CCSDS 232.0-B-4 standard
 ├── Makefile
 └── README.md
 ```
 
 ## Building
+
+Warnings are treated as errors (`-Werror`). The build is checked with both `gcc` and
+`clang`; select the compiler with `make CC=clang`.
 
 ### Build Everything
 
@@ -69,6 +72,8 @@ This will create:
 - `build/libsdlp.a` - Static library
 - `build/bin/tm_example` - TM frame example
 - `build/bin/tc_example` - TC frame example
+- `build/segment_header/tm_example` and `build/segment_header/tc_example` - the same
+  examples built with the optional TC Segment Header (`TC_SEGMENT_HEADER_ENABLED`)
 
 ### Build Library Only
 
@@ -80,7 +85,8 @@ make lib
 ### Build Examples
 
 ```bash
-make examples
+make examples   # build only
+make example    # build, then run tm_example and tc_example
 ```
 
 ### Run Tests
@@ -88,6 +94,9 @@ make examples
 ```bash
 make test
 ```
+
+The unit tests are built and run twice: against the library as `make lib` builds it, and
+again with the optional TC Segment Header compiled in (`TC_SEGMENT_HEADER_ENABLED`).
 
 ### Coverage (HTML)
 
@@ -103,11 +112,24 @@ Generate coverage report:
 make coverage-html
 ```
 
+The command fails unless line and branch coverage of `src/` are both 100% in each of the
+two build configurations (without and with the TC Segment Header). It rebuilds the unit
+tests from scratch with the Makefile's own flags plus coverage instrumentation.
+
 Output report:
 
 ```text
 build/coverage/index.html
 ```
+
+### Sanitizers (ASan + UBSan)
+
+```bash
+make sanitize   # rebuild with ASan + UBSan, run tests and examples, then clean up
+```
+
+The target starts from a clean build and removes `build/` again when it finishes, so a
+coverage report generated earlier is deleted with it.
 
 ### Clean
 
@@ -136,14 +158,14 @@ Current implementation focuses on core protocol features:
 - No SDLS (Space Data Link Security) option
 - No TM Only-Idle-Data (OID) frame generation or PN randomization
 - TM Transfer Frames are variable length; the mission-fixed frame length must be enforced by the caller
-- TM frame counts are kept per Master Channel / Virtual Channel in fixed static state (up to `TM_MAX_MASTER_CHANNELS` Master Channels; not thread-safe)
+- TM frame counts are kept per Master Channel / Virtual Channel in fixed static state (not thread-safe). At most `TM_MAX_MASTER_CHANNELS` (default 8) Spacecraft IDs are tracked; `sdlp_tm_create_frame` returns `SDLP_ERROR_NO_RESOURCE` for one more, and `sdlp_tm_reset_frame_counts` empties the table
 
 These can be extended as needed for specific mission requirements.
 
 ## References
 
-- CCSDS 132.0-B-3: TM Space Data Link Protocol ([docs/132x0b3_TM_SDLP.pdf](docs/132x0b3_TM_SDLP.pdf))
-- CCSDS 232.0-B-4: TC Space Data Link Protocol ([docs/232x0b4e1c1_TC_SDLP.pdf](docs/232x0b4e1c1_TC_SDLP.pdf))
+- [CCSDS 132.0-B-3: TM Space Data Link Protocol](https://public.ccsds.org/Pubs/132x0b3.pdf)
+- [CCSDS 232.0-B-4: TC Space Data Link Protocol](https://public.ccsds.org/Pubs/232x0b4e1c1.pdf)
 
 ## License
 

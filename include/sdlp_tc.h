@@ -19,10 +19,13 @@ extern "C"
 {
 #endif
 
-#define TC_PRIMARY_HEADER_SIZE 5      /**< Transfer Frame Primary Header size (§4.1.2). */
-#define TC_FRAME_ERROR_CONTROL_SIZE 2 /**< Frame Error Control Field size (§4.1.4). */
+/** @brief Transfer Frame Primary Header size in octets (§4.1.2). */
+#define TC_PRIMARY_HEADER_SIZE 5
 
-/** Maximum whole Transfer Frame size in octets (CCSDS 232.0-B-4 §4.1.2.7.2). */
+/** @brief Frame Error Control Field size in octets (§4.1.4). */
+#define TC_FRAME_ERROR_CONTROL_SIZE 2
+
+/** @brief Maximum Transfer Frame size in octets (§4.1.2.7). */
 #define TC_MAX_FRAME_SIZE 1024
 
 /**
@@ -33,6 +36,9 @@ extern "C"
  * (enforced by sdlp_tc_create_frame()).
  */
 #define TC_MAX_DATA_SIZE (TC_MAX_FRAME_SIZE - TC_PRIMARY_HEADER_SIZE - TC_FRAME_ERROR_CONTROL_SIZE)
+
+/** @brief Frame Length field = octets in the Transfer Frame minus this (§4.1.2.7.2). */
+#define TC_FRAME_LENGTH_OFFSET 1u
 
 /**
  * @brief TC Transfer Frame types — Bypass/Control Command Flag combinations (§table 4-1).
@@ -51,16 +57,22 @@ typedef enum
  * @brief Control Commands carried by Type-BC frames (CCSDS 232.0-B-4 §4.1.3.3).
  * @{
  */
-#define TC_CONTROL_CMD_UNLOCK 0x00u        /**< Unlock: a single 'all zeroes' octet (§4.1.3.3.2). */
-#define TC_CONTROL_CMD_UNLOCK_LENGTH 1u    /**< Unlock command length in octets. */
-#define TC_CONTROL_CMD_SET_VR_OCTET0 0x82u /**< Set V(R) octet 0: '10000010' (§4.1.3.3.3). */
-#define TC_CONTROL_CMD_SET_VR_OCTET1 0x00u /**< Set V(R) octet 1: '00000000'. */
-#define TC_CONTROL_CMD_SET_VR_LENGTH 3u    /**< Set V(R) command length in octets. */
+/** @brief Unlock: one 'all zeroes' octet (§4.1.3.3.2). */
+#define TC_CONTROL_CMD_UNLOCK 0x00u
+/** @brief Unlock command length in octets. */
+#define TC_CONTROL_CMD_UNLOCK_LENGTH 1u
+/** @brief Set V(R) octet 0: '10000010' (§4.1.3.3.3). */
+#define TC_CONTROL_CMD_SET_VR_OCTET0 0x82u
+/** @brief Set V(R) octet 1: '00000000'. */
+#define TC_CONTROL_CMD_SET_VR_OCTET1 0x00u
+/** @brief Set V(R) command length in octets. */
+#define TC_CONTROL_CMD_SET_VR_LENGTH 3u
 /** @} */
 
 #ifdef TC_SEGMENT_HEADER_ENABLED
 
-#    define TC_SEGMENT_HEADER_SIZE 1 /**< Segment Header size in octets (§4.1.3.2.2). */
+/** @brief Segment Header size in octets (§4.1.3.2.2). */
+#    define TC_SEGMENT_HEADER_SIZE 1
 
 /**
  * @brief TC Segment Header Sequence Flags (CCSDS 232.0-B-4 §table 4-2).
@@ -144,8 +156,8 @@ sdlp_status_t sdlp_tc_create_frame(sdlp_tc_frame_t *frame,
  * Also recomputes the Frame Length, since Type-BC frames carry no Segment Header
  * (§4.1.3.2.2.1.3). sdlp_tc_create_frame() produces a Type-AD frame.
  *
- * @param[out] frame Target frame.
- * @param[in]  type  Desired frame type.
+ * @param[in,out] frame Target frame.
+ * @param[in]     type  Desired frame type.
  * @return ::SDLP_SUCCESS, or ::SDLP_ERROR_INVALID_PARAM on a NULL frame or unknown type.
  */
 sdlp_status_t sdlp_tc_set_frame_type(sdlp_tc_frame_t *frame, sdlp_tc_frame_type_t type);
@@ -183,13 +195,16 @@ sdlp_status_t sdlp_tc_create_set_vr_frame(sdlp_tc_frame_t *frame,
  *
  * Emits the primary header, the Segment Header (when compiled in and the frame is
  * not Type-BC), the Data Field, then the FECF (verbatim from @p frame->fecf). The
- * wire Frame Length is derived from the emitted octet count.
+ * wire Frame Length is derived from the emitted octet count. On failure, @p buffer
+ * and @p encoded_size are left unchanged.
  *
  * @param[in]  frame        Frame to serialise.
  * @param[out] buffer       Output buffer.
  * @param[in]  buffer_size  Buffer capacity in octets.
  * @param[out] encoded_size Bytes written on success.
- * @return ::SDLP_SUCCESS, ::SDLP_ERROR_INVALID_PARAM, or ::SDLP_ERROR_BUFFER_TOO_SMALL.
+ * @return ::SDLP_SUCCESS; ::SDLP_ERROR_INVALID_PARAM on NULL args or a frame that would
+ *         exceed ::TC_MAX_FRAME_SIZE octets; ::SDLP_ERROR_BUFFER_TOO_SMALL if @p buffer
+ *         cannot hold the frame.
  */
 sdlp_status_t sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame,
                                    uint8_t *buffer,
@@ -201,6 +216,7 @@ sdlp_status_t sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame,
  *
  * Validates that the Frame Length matches the octet count and rejects the reserved
  * Bypass=0/Control Command=1 combination. The FECF is surfaced without validation.
+ * On failure, @p frame is left unchanged.
  *
  * @param[in]  buffer      Wire buffer to parse.
  * @param[in]  buffer_size Buffer length in octets.
@@ -215,12 +231,15 @@ sdlp_status_t sdlp_tc_decode_frame(const uint8_t *buffer,
 /**
  * @brief Set the Segment Header fields on a TC frame (CCSDS 232.0-B-4 §4.1.3.2.2).
  *
- * Must not be used on frames with the Control Command Flag set (§4.1.3.2.2.1.3).
+ * The Segment Header must not be present in frames carrying Control Commands
+ * (§4.1.3.2.2.1.3), so a frame with the Control Command Flag set is rejected. On failure,
+ * @p frame is left unchanged.
  *
- * @param[out] frame          Target frame.
- * @param[in]  sequence_flags One of the ::sdlp_tc_seq_flag_t values.
- * @param[in]  map_id         Multiplexer Access Point Identifier (0-63).
- * @return ::SDLP_SUCCESS, or ::SDLP_ERROR_INVALID_PARAM on a NULL frame.
+ * @param[in,out] frame          Target frame.
+ * @param[in]     sequence_flags One of the ::sdlp_tc_seq_flag_t values.
+ * @param[in]     map_id         Multiplexer Access Point Identifier (0-63).
+ * @return ::SDLP_SUCCESS, or ::SDLP_ERROR_INVALID_PARAM on a NULL frame or a frame with the
+ *         Control Command Flag set.
  */
 sdlp_status_t sdlp_tc_set_segment_header(sdlp_tc_frame_t *frame,
                                          sdlp_tc_seq_flag_t sequence_flags,

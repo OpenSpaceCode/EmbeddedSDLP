@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit-tests:
+    name: Unit tests (${{ matrix.cc }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build library, examples and run unit tests
+        run: make all test CC=${{ matrix.cc }}
+      - name: Run examples
+        run: |
+          ./build/bin/tm_example
+          ./build/bin/tc_example
+          ./build/segment_header/tm_example
+          ./build/segment_header/tc_example
+
+  coverage:
+    name: Coverage (100% line and branch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gcovr
+        run: sudo apt-get update && sudo apt-get install -y gcovr
+      - name: Build instrumented tests and generate report
+        run: make coverage-html
+      - name: Enforce 100% line and branch coverage
+        run: >
+          gcovr -r . --filter src
+          --fail-under-line 100
+          --fail-under-branch 100
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: build/coverage/
+          if-no-files-found: ignore
+
+  sanitizers:
+    name: ASan + UBSan
+    runs-on: ubuntu-latest
+    env:
+      ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+      UBSAN_OPTIONS: print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run unit tests and examples under ASan and UBSan
+        run: make sanitize

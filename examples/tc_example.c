@@ -11,7 +11,7 @@
 
 #include <stdio.h>
 
-/* Example telecommand identifiers */
+/** @brief Example telecommand identifier: switch to safe mode. */
 #define TC_CMD_SET_MODE_SAFE 0x01U
 
 /** @brief Number of leading frame octets shown in the hex dump. */

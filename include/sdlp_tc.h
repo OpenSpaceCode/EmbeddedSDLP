@@ -19,10 +19,13 @@ extern "C"
 {
 #endif
 
-#define TC_PRIMARY_HEADER_SIZE 5      /**< Transfer Frame Primary Header size (§4.1.2). */
-#define TC_FRAME_ERROR_CONTROL_SIZE 2 /**< Frame Error Control Field size (§4.1.4). */
+/** @brief Transfer Frame Primary Header size in octets (§4.1.2). */
+#define TC_PRIMARY_HEADER_SIZE 5
 
-/** Maximum whole Transfer Frame size in octets (CCSDS 232.0-B-4 §4.1.2.7.2). */
+/** @brief Frame Error Control Field size in octets (§4.1.4). */
+#define TC_FRAME_ERROR_CONTROL_SIZE 2
+
+/** @brief Maximum Transfer Frame size in octets (§4.1.2.7). */
 #define TC_MAX_FRAME_SIZE 1024
 
 /**
@@ -54,16 +57,22 @@ typedef enum
  * @brief Control Commands carried by Type-BC frames (CCSDS 232.0-B-4 §4.1.3.3).
  * @{
  */
-#define TC_CONTROL_CMD_UNLOCK 0x00u        /**< Unlock: one 'all zeroes' octet (§4.1.3.3.2). */
-#define TC_CONTROL_CMD_UNLOCK_LENGTH 1u    /**< Unlock command length in octets. */
-#define TC_CONTROL_CMD_SET_VR_OCTET0 0x82u /**< Set V(R) octet 0: '10000010' (§4.1.3.3.3). */
-#define TC_CONTROL_CMD_SET_VR_OCTET1 0x00u /**< Set V(R) octet 1: '00000000'. */
-#define TC_CONTROL_CMD_SET_VR_LENGTH 3u    /**< Set V(R) command length in octets. */
+/** @brief Unlock: one 'all zeroes' octet (§4.1.3.3.2). */
+#define TC_CONTROL_CMD_UNLOCK 0x00u
+/** @brief Unlock command length in octets. */
+#define TC_CONTROL_CMD_UNLOCK_LENGTH 1u
+/** @brief Set V(R) octet 0: '10000010' (§4.1.3.3.3). */
+#define TC_CONTROL_CMD_SET_VR_OCTET0 0x82u
+/** @brief Set V(R) octet 1: '00000000'. */
+#define TC_CONTROL_CMD_SET_VR_OCTET1 0x00u
+/** @brief Set V(R) command length in octets. */
+#define TC_CONTROL_CMD_SET_VR_LENGTH 3u
 /** @} */
 
 #ifdef TC_SEGMENT_HEADER_ENABLED
 
-#    define TC_SEGMENT_HEADER_SIZE 1 /**< Segment Header size in octets (§4.1.3.2.2). */
+/** @brief Segment Header size in octets (§4.1.3.2.2). */
+#    define TC_SEGMENT_HEADER_SIZE 1
 
 /**
  * @brief TC Segment Header Sequence Flags (CCSDS 232.0-B-4 §table 4-2).

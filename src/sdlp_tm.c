@@ -10,7 +10,8 @@
 
 #include <string.h>
 
-#define TM_VC_PER_MC 8 /**< TM Virtual Channels per Master Channel (VCID is 3 bits). */
+/** @brief Virtual Channels per Master Channel: the VCID is 3 bits. */
+#define TM_VC_PER_MC 8
 
 /**
  * @brief Per-Master-Channel frame-count state.

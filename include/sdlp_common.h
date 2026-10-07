@@ -17,7 +17,8 @@ extern "C"
 {
 #endif
 
-#define SDLP_VERSION 0 /**< Transfer Frame Version Number — '00' for both TM and TC. */
+/** @brief Transfer Frame Version Number: '00' for both TM and TC. */
+#define SDLP_VERSION 0
 
 /**
  * @brief Library-wide return codes for the TM and TC frame handlers.

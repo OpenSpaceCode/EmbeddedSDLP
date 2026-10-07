@@ -19,9 +19,14 @@ extern "C"
 {
 #endif
 
-#define TM_PRIMARY_HEADER_SIZE 6      /**< Transfer Frame Primary Header size (§4.1.2). */
-#define TM_FRAME_ERROR_CONTROL_SIZE 2 /**< Frame Error Control Field size (§4.1.6). */
-#define TM_MAX_DATA_SIZE 1024         /**< Maximum Transfer Frame Data Field carried. */
+/** @brief Transfer Frame Primary Header size in octets (§4.1.2). */
+#define TM_PRIMARY_HEADER_SIZE 6
+
+/** @brief Frame Error Control Field size in octets (§4.1.6). */
+#define TM_FRAME_ERROR_CONTROL_SIZE 2
+
+/** @brief Maximum Transfer Frame Data Field length the library carries, in octets. */
+#define TM_MAX_DATA_SIZE 1024
 
 /**
  * @brief Transfer Frame Secondary Header sizing (CCSDS 132.0-B-3 §4.1.3).
@@ -30,12 +35,16 @@ extern "C"
  * i.e. up to 64 octets in total.
  * @{
  */
-#define TM_SECONDARY_HEADER_ID_SIZE 1   /**< Identification Field size in octets. */
-#define TM_SECONDARY_HEADER_MIN_DATA 1  /**< Minimum Secondary Header Data Field length. */
-#define TM_SECONDARY_HEADER_MAX_DATA 63 /**< Maximum Secondary Header Data Field length. */
+/** @brief Identification Field size in octets. */
+#define TM_SECONDARY_HEADER_ID_SIZE 1
+/** @brief Minimum Secondary Header Data Field length in octets. */
+#define TM_SECONDARY_HEADER_MIN_DATA 1
+/** @brief Maximum Secondary Header Data Field length in octets. */
+#define TM_SECONDARY_HEADER_MAX_DATA 63
 /** @} */
 
-#define TM_OCF_SIZE 4 /**< Operational Control Field size in octets (§4.1.5). */
+/** @brief Operational Control Field size in octets (§4.1.5). */
+#define TM_OCF_SIZE 4
 
 /**
  * @brief Number of distinct Master Channels whose frame counts are tracked concurrently.
@@ -55,11 +64,11 @@ extern "C"
  * @brief Transfer Frame Data Field Status sub-field values (CCSDS 132.0-B-3 §4.1.2.7).
  * @{
  */
-/** '11'; mandatory Segment Length Identifier when Sync Flag = 0 (§4.1.2.7.5.2). */
+/** @brief Segment Length Identifier '11', mandatory when Sync Flag = 0 (§4.1.2.7.5.2). */
 #define TM_SEGMENT_LENGTH_ID_NO_SEGMENTATION 0x03u
-/** First Header Pointer: no Packet starts in the Data Field (§4.1.2.7.6.4). */
+/** @brief First Header Pointer: no Packet starts in the Data Field (§4.1.2.7.6.4). */
 #define TM_FIRST_HEADER_POINTER_NO_PACKET 0x07FFu
-/** First Header Pointer: Only Idle Data (OID) Transfer Frame (§4.1.2.7.6.5). */
+/** @brief First Header Pointer: Only Idle Data (OID) Transfer Frame (§4.1.2.7.6.5). */
 #define TM_FIRST_HEADER_POINTER_ONLY_IDLE 0x07FEu
 /** @} */
 

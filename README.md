@@ -112,6 +112,15 @@ Output report:
 build/coverage/index.html
 ```
 
+### Sanitizers (ASan + UBSan)
+
+```bash
+make sanitize   # rebuild with ASan + UBSan, run tests and examples, then clean up
+```
+
+The target starts from a clean build and removes `build/` again when it finishes, so a
+coverage report generated earlier is deleted with it.
+
 ### Clean
 
 ```bash

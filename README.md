@@ -95,6 +95,9 @@ make examples
 make test
 ```
 
+The unit tests are built and run twice: against the library as `make lib` builds it, and
+again with the optional TC Segment Header compiled in (`TC_SEGMENT_HEADER_ENABLED`).
+
 ### Coverage (HTML)
 
 Requires `gcovr` installed in your system:
@@ -109,8 +112,9 @@ Generate coverage report:
 make coverage-html
 ```
 
-The command fails unless line and branch coverage of `src/` are both 100%. It rebuilds the
-unit tests from scratch with the Makefile's own flags plus coverage instrumentation.
+The command fails unless line and branch coverage of `src/` are both 100% in each of the
+two build configurations (without and with the TC Segment Header). It rebuilds the unit
+tests from scratch with the Makefile's own flags plus coverage instrumentation.
 
 Output report:
 

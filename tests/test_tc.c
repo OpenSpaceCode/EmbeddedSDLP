@@ -12,9 +12,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* The TC unit tests always exercise the segment-header configuration. */
-#ifndef TC_SEGMENT_HEADER_ENABLED
-#    error "test_tc.c must be built with -DTC_SEGMENT_HEADER_ENABLED"
+/**
+ * @brief Octets the Segment Header adds to a Type-D frame in this build configuration.
+ *
+ * The suite is built twice, without and with TC_SEGMENT_HEADER_ENABLED, so every size that
+ * depends on the Segment Header is written in terms of this value.
+ */
+#ifdef TC_SEGMENT_HEADER_ENABLED
+#    define TEST_TC_SEGMENT_OCTETS TC_SEGMENT_HEADER_SIZE
+#else
+#    define TEST_TC_SEGMENT_OCTETS 0
 #endif
 
 /** @brief Scratch buffer size for rejected-encode checks: holds a frame just over the limit. */
@@ -41,7 +48,7 @@ static int test_tc_encode_decode_roundtrip(void)
     const uint8_t payload[] = {0x01u, 0x23u, 0x45u, 0x67u};
     uint8_t encoded[TC_PRIMARY_HEADER_SIZE + TC_MAX_DATA_SIZE + TC_FRAME_ERROR_CONTROL_SIZE];
     size_t encoded_size = 0;
-    const int seg = TC_SEGMENT_HEADER_SIZE; /* a Type-D frame carries a Segment Header */
+    const int seg = TEST_TC_SEGMENT_OCTETS;
 
     ASSERT_EQ_INT(
         SDLP_SUCCESS,
@@ -292,6 +299,7 @@ static int test_tc_null_params(void)
     return 0;
 }
 
+#ifdef TC_SEGMENT_HEADER_ENABLED
 static int test_tc_segment_header_roundtrip(void)
 {
     sdlp_tc_frame_t frame;
@@ -339,6 +347,7 @@ static int test_tc_decode_segment_too_small(void)
 
     return 0;
 }
+#endif /* TC_SEGMENT_HEADER_ENABLED */
 
 /**
  * @brief Decode a buffer the decoder must reject and check the output frame is untouched.
@@ -374,8 +383,10 @@ static int test_tc_decode_failure_leaves_frame_unchanged(void)
     const uint8_t reserved_type[8] = {0x10u, 0, 0, 7};
     /* Frame Length = 6 announces 7 octets, but 8 are present. */
     const uint8_t wrong_length[8] = {0, 0, 0, 6};
+#ifdef TC_SEGMENT_HEADER_ENABLED
     /* A consistent 7-octet Type-D frame has no room for the Segment Header and the FECF. */
     const uint8_t no_segment_room[7] = {0, 0, 0, 6};
+#endif
 
     ASSERT_EQ_INT(
         0,
@@ -391,10 +402,12 @@ static int test_tc_decode_failure_leaves_frame_unchanged(void)
                   test_tc_expect_decode_rejected(wrong_length,
                                                  sizeof(wrong_length),
                                                  SDLP_ERROR_INVALID_FRAME));
+#ifdef TC_SEGMENT_HEADER_ENABLED
     ASSERT_EQ_INT(0,
                   test_tc_expect_decode_rejected(no_segment_room,
                                                  sizeof(no_segment_room),
                                                  SDLP_ERROR_INVALID_FRAME));
+#endif
 
     return 0;
 }
@@ -438,7 +451,7 @@ static int test_tc_check_max_frame_roundtrip(uint8_t *encoded)
 {
     sdlp_tc_frame_t frame;
     sdlp_tc_frame_t decoded;
-    uint8_t payload[TC_MAX_DATA_SIZE - TC_SEGMENT_HEADER_SIZE];
+    uint8_t payload[TC_MAX_DATA_SIZE - TEST_TC_SEGMENT_OCTETS];
     size_t encoded_size = 0;
 
     for (size_t i = 0; i < sizeof(payload); i++)
@@ -489,9 +502,10 @@ static int test_tc_encode_rejects_oversized_frame(void)
 
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tc_create_frame(&frame, 1, 1, 1, payload, 1));
 
-    /* Type-D: the Segment Header takes one octet, so a full Data Field array makes a
-     * 1025-octet frame, one more than the 10-bit Frame Length can express. */
-    frame.data_length = TC_MAX_DATA_SIZE;
+    /* Type-D: one octet more than the largest Data Field, which is the array less the
+     * Segment Header octet when that is compiled in. The frame would be 1025 octets, one
+     * more than the 10-bit Frame Length can express. */
+    frame.data_length = TC_MAX_DATA_SIZE - TEST_TC_SEGMENT_OCTETS + 1;
     ASSERT_EQ_INT(
         0,
         test_tc_expect_encode_rejected(&frame, TEST_TC_SCRATCH_SIZE, SDLP_ERROR_INVALID_PARAM));
@@ -533,8 +547,10 @@ test_result_t test_tc_run_all(void)
     RUN_TEST(test_tc_unlock_command);
     RUN_TEST(test_tc_set_vr_command);
     RUN_TEST(test_tc_decode_reserved_frame_type);
+#ifdef TC_SEGMENT_HEADER_ENABLED
     RUN_TEST(test_tc_segment_header_roundtrip);
     RUN_TEST(test_tc_decode_segment_too_small);
+#endif
     RUN_TEST(test_tc_decode_failure_leaves_frame_unchanged);
     RUN_TEST(test_tc_encode_max_frame_exact_buffer);
     RUN_TEST(test_tc_encode_rejects_oversized_frame);

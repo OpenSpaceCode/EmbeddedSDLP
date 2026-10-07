@@ -144,7 +144,7 @@ static void sdlp_tm_decode_secondary_header(const uint8_t *wire,
  */
 static size_t sdlp_tm_encoded_size(const sdlp_tm_frame_t *frame)
 {
-    size_t size = TM_PRIMARY_HEADER_SIZE + frame->data_length + TM_FRAME_ERROR_CONTROL_SIZE;
+    size_t size = (size_t)TM_PRIMARY_HEADER_SIZE + frame->data_length + TM_FRAME_ERROR_CONTROL_SIZE;
 
     /* A data_length beyond the Data Field array would make the encoder read past it. */
     if (frame->data_length > TM_MAX_DATA_SIZE)
@@ -214,12 +214,9 @@ sdlp_status_t sdlp_tm_create_frame(sdlp_tm_frame_t *frame,
         return SDLP_ERROR_INVALID_PARAM;
     }
 
-    const uint16_t scid = (uint16_t)(spacecraft_id & 0x3FFu);
-    const uint8_t vcid = (uint8_t)(virtual_channel_id & 0x07u);
-
     /* The lookup is the last check and claims a table slot only when it succeeds, so a
      * rejected call leaves the frame and every frame count as they were. */
-    tm_master_channel_t *mc = tm_get_master_channel(scid);
+    tm_master_channel_t *mc = tm_get_master_channel((uint16_t)(spacecraft_id & 0x3FFu));
     if (!mc)
     {
         return SDLP_ERROR_NO_RESOURCE;
@@ -228,11 +225,12 @@ sdlp_status_t sdlp_tm_create_frame(sdlp_tm_frame_t *frame,
     memset(frame, 0, sizeof(sdlp_tm_frame_t));
 
     frame->header.transfer_frame_version = SDLP_VERSION;
-    frame->header.spacecraft_id = scid;
-    frame->header.virtual_channel_id = vcid;
+    frame->header.spacecraft_id = (uint16_t)(spacecraft_id & 0x3FFu);
+    frame->header.virtual_channel_id = (uint16_t)(virtual_channel_id & 0x07u);
     frame->header.ocf_flag = 0;
     frame->header.master_channel_frame_count = mc->mc_frame_count++;
-    frame->header.virtual_channel_frame_count = mc->vc_frame_count[vcid]++;
+    frame->header.virtual_channel_frame_count =
+        mc->vc_frame_count[frame->header.virtual_channel_id]++;
 
     /* Default to a valid "Packets, no segmentation" Data Field Status: Sync Flag = 0
      * requires the Segment Length Identifier to be '11' (CCSDS 132.0-B-3, 4.1.2.7.5.2),
@@ -261,7 +259,7 @@ sdlp_status_t sdlp_tm_set_secondary_header(sdlp_tm_frame_t *frame,
 
     frame->header.transfer_frame_data_field_status.secondary_header_flag = 1;
     frame->secondary_header.version = 0; /* CCSDS 132.0-B-3, 4.1.3.2.2.2 */
-    frame->secondary_header.length = length;
+    frame->secondary_header.length = (uint8_t)(length & 0x3Fu);
     memcpy(frame->secondary_header.data, data, length);
 
     return SDLP_SUCCESS;
@@ -303,7 +301,7 @@ sdlp_status_t sdlp_tm_encode_frame(const sdlp_tm_frame_t *frame,
 
     size_t offset = 0;
 
-    buffer[offset++] = (uint8_t)((frame->header.transfer_frame_version << 6) |
+    buffer[offset++] = (uint8_t)(((frame->header.transfer_frame_version & 0x03u) << 6) |
                                  ((frame->header.spacecraft_id >> 4) & 0x3Fu));
     buffer[offset++] = (uint8_t)(((frame->header.spacecraft_id & 0x0Fu) << 4) |
                                  ((frame->header.virtual_channel_id & 0x07u) << 1) |

@@ -21,7 +21,8 @@
  */
 static uint16_t tc_frame_length(const sdlp_tc_frame_t *frame)
 {
-    size_t frame_octets = TC_PRIMARY_HEADER_SIZE + frame->data_length + TC_FRAME_ERROR_CONTROL_SIZE;
+    size_t frame_octets =
+        (size_t)TC_PRIMARY_HEADER_SIZE + frame->data_length + TC_FRAME_ERROR_CONTROL_SIZE;
 #ifdef TC_SEGMENT_HEADER_ENABLED
     if (!frame->header.control_command_flag)
     {
@@ -85,7 +86,7 @@ sdlp_status_t sdlp_tc_create_frame(sdlp_tc_frame_t *frame,
 
     /* sdlp_tc_encode_frame recomputes the Frame Length from the bytes it actually
      * emits; it is set here so the struct is self-consistent. */
-    frame->header.frame_length = tc_frame_length(frame);
+    frame->header.frame_length = (uint16_t)(tc_frame_length(frame) & 0x03FFu);
 
     return SDLP_SUCCESS;
 }
@@ -117,7 +118,7 @@ sdlp_status_t sdlp_tc_set_frame_type(sdlp_tc_frame_t *frame, sdlp_tc_frame_type_
 
     /* The Segment Header is absent from Type-BC frames, so the frame type affects
      * the total frame size when segment headers are compiled in. */
-    frame->header.frame_length = tc_frame_length(frame);
+    frame->header.frame_length = (uint16_t)(tc_frame_length(frame) & 0x03FFu);
 
     return SDLP_SUCCESS;
 }
@@ -180,7 +181,7 @@ sdlp_status_t sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame,
     }
 
     size_t required_size =
-        TC_PRIMARY_HEADER_SIZE + frame->data_length + TC_FRAME_ERROR_CONTROL_SIZE;
+        (size_t)TC_PRIMARY_HEADER_SIZE + frame->data_length + TC_FRAME_ERROR_CONTROL_SIZE;
 
 #ifdef TC_SEGMENT_HEADER_ENABLED
     if (!frame->header.control_command_flag)
@@ -208,7 +209,7 @@ sdlp_status_t sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame,
 
     size_t offset = 0;
 
-    buffer[offset++] = (uint8_t)((frame->header.transfer_frame_version << 6) |
+    buffer[offset++] = (uint8_t)(((frame->header.transfer_frame_version & 0x03u) << 6) |
                                  ((frame->header.bypass_flag & 0x01u) << 5) |
                                  ((frame->header.control_command_flag & 0x01u) << 4) |
                                  ((frame->header.reserved & 0x03u) << 2) |

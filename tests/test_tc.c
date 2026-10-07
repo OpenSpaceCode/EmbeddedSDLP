@@ -14,7 +14,7 @@
 
 /* The TC unit tests always exercise the segment-header configuration. */
 #ifndef TC_SEGMENT_HEADER_ENABLED
-#error "test_tc.c must be built with -DTC_SEGMENT_HEADER_ENABLED"
+#    error "test_tc.c must be built with -DTC_SEGMENT_HEADER_ENABLED"
 #endif
 
 /** @brief Scratch buffer size for rejected-encode checks: holds a frame just over the limit. */

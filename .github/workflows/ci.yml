@@ -21,6 +21,8 @@ jobs:
         run: |
           ./build/bin/tm_example
           ./build/bin/tc_example
+          ./build/segment_header/tm_example
+          ./build/segment_header/tc_example
 
   coverage:
     name: Coverage (100% line and branch)

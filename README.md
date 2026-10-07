@@ -75,6 +75,8 @@ This will create:
 - `build/libsdlp.a` - Static library
 - `build/bin/tm_example` - TM frame example
 - `build/bin/tc_example` - TC frame example
+- `build/segment_header/tm_example` and `build/segment_header/tc_example` - the same
+  examples built with the optional TC Segment Header (`TC_SEGMENT_HEADER_ENABLED`)
 
 ### Build Library Only
 

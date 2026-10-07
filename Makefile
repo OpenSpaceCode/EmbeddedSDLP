@@ -27,10 +27,12 @@ EXAMPLES = $(wildcard $(EXAMPLES_DIR)/*.c)
 EXAMPLE_BINS = $(patsubst $(EXAMPLES_DIR)/%.c,$(BIN_DIR)/%,$(EXAMPLES))
 TEST_SRCS = $(wildcard $(TEST_DIR)/*.c)
 TEST_BIN = $(BIN_DIR)/unit_tests
-# The unit tests are built a second time with the optional TC Segment Header compiled in.
-# That build has its own directory, so its coverage data stays apart from the default one.
-SEGMENT_TEST_DIR = $(BUILD_DIR)/segment_header
-SEGMENT_TEST_BIN = $(SEGMENT_TEST_DIR)/unit_tests
+# The unit tests and the examples are built a second time with the optional TC Segment
+# Header compiled in. That build has its own directory, so its coverage data stays apart
+# from the default one.
+SEGMENT_DIR = $(BUILD_DIR)/segment_header
+SEGMENT_TEST_BIN = $(SEGMENT_DIR)/unit_tests
+SEGMENT_EXAMPLE_BINS = $(patsubst $(EXAMPLES_DIR)/%.c,$(SEGMENT_DIR)/%,$(EXAMPLES))
 
 LIB = $(BUILD_DIR)/libsdlp.a
 
@@ -46,12 +48,17 @@ $(LIB): $(OBJS)
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-examples: $(EXAMPLE_BINS)
+examples: $(EXAMPLE_BINS) $(SEGMENT_EXAMPLE_BINS)
 
 unit-tests: $(TEST_BIN) $(SEGMENT_TEST_BIN)
 
 $(BIN_DIR)/%: $(EXAMPLES_DIR)/%.c $(LIB) | $(BIN_DIR)
 	$(CC) $(CFLAGS) $< $(LIB) -o $@ $(LDFLAGS)
+
+# Segment-header configuration: the library is built without it, so its sources are
+# compiled together with each example, all with TC_SEGMENT_HEADER_ENABLED.
+$(SEGMENT_DIR)/%: $(EXAMPLES_DIR)/%.c $(SRCS) | $(SEGMENT_DIR)
+	$(CC) $(CFLAGS) -DTC_SEGMENT_HEADER_ENABLED $< $(SRCS) -o $@ $(LDFLAGS)
 
 # Default configuration: the tests link the library exactly as `make lib` builds it.
 $(TEST_BIN): $(TEST_SRCS) $(LIB) | $(BIN_DIR)
@@ -59,7 +66,7 @@ $(TEST_BIN): $(TEST_SRCS) $(LIB) | $(BIN_DIR)
 
 # Segment-header configuration: the library is built without it, so the sources are
 # compiled together with the tests, all with TC_SEGMENT_HEADER_ENABLED.
-$(SEGMENT_TEST_BIN): $(SRCS) $(TEST_SRCS) | $(SEGMENT_TEST_DIR)
+$(SEGMENT_TEST_BIN): $(SRCS) $(TEST_SRCS) | $(SEGMENT_DIR)
 	$(CC) $(CFLAGS) -DTC_SEGMENT_HEADER_ENABLED $(SRCS) $(TEST_SRCS) -o $@ $(LDFLAGS)
 
 $(BUILD_DIR):
@@ -72,8 +79,8 @@ $(OBJ_DIR): | $(BUILD_DIR)
 $(BIN_DIR): | $(BUILD_DIR)
 	mkdir -p $(BIN_DIR)
 
-$(SEGMENT_TEST_DIR): | $(BUILD_DIR)
-	mkdir -p $(SEGMENT_TEST_DIR)
+$(SEGMENT_DIR): | $(BUILD_DIR)
+	mkdir -p $(SEGMENT_DIR)
 
 clean:
 	rm -rf $(BUILD_DIR)
@@ -100,12 +107,13 @@ sanitize:
 		|| { cat $(SANITIZE_DIR)/unit_tests_segment_header.log; \
 		     echo "  library via unit tests (segment header) : FAILED"; \
 		     $(MAKE) --no-print-directory clean >/dev/null; exit 1; }
-	@for example in $(EXAMPLE_BINS); do \
+	@for example in $(EXAMPLE_BINS) $(SEGMENT_EXAMPLE_BINS); do \
 		name=$$(basename $$example); \
-		./$$example >$(SANITIZE_DIR)/$$name.log \
+		case $$example in $(SEGMENT_DIR)/*) name="$$name (segment header)";; esac; \
+		log=$(SANITIZE_DIR)/$$(echo $$example | tr '/' '_').log; \
+		./$$example >$$log \
 			&& printf "  library via %-27s : no errors detected\n" "$$name" \
-			|| { cat $(SANITIZE_DIR)/$$name.log; \
-			     printf "  library via %-27s : FAILED\n" "$$name"; \
+			|| { cat $$log; printf "  library via %-27s : FAILED\n" "$$name"; \
 			     $(MAKE) --no-print-directory clean >/dev/null; exit 1; }; \
 	done
 	@$(MAKE) --no-print-directory clean >/dev/null

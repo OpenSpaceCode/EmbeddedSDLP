@@ -158,6 +158,9 @@ Current implementation focuses on core protocol features:
 - No SDLS (Space Data Link Security) option
 - No TM Only-Idle-Data (OID) frame generation or PN randomization
 - TM Transfer Frames are variable length; the mission-fixed frame length must be enforced by the caller
+- The 2-octet FECF is always emitted, although both standards make it optional
+- The TC Segment Header is a build-time switch for all Virtual Channels, not per Virtual Channel; it changes `sdlp_tc_frame_t`, so build the library and the application with the same setting
+- Decoders do not check the Transfer Frame Version Number
 - TM frame counts are kept per Master Channel / Virtual Channel in fixed static state (not thread-safe). At most `SDLP_TM_MAX_MASTER_CHANNELS` (default 8) Spacecraft IDs are tracked; `sdlp_tm_create_frame` returns `SDLP_ERROR_NO_RESOURCE` for one more, and `sdlp_tm_reset_frame_counts` empties the table
 
 These can be extended as needed for specific mission requirements.

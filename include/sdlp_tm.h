@@ -20,13 +20,13 @@ extern "C"
 #endif
 
 /** @brief Transfer Frame Primary Header size in octets (§4.1.2). */
-#define TM_PRIMARY_HEADER_SIZE 6
+#define SDLP_TM_PRIMARY_HEADER_SIZE 6
 
 /** @brief Frame Error Control Field size in octets (§4.1.6). */
-#define TM_FRAME_ERROR_CONTROL_SIZE 2
+#define SDLP_TM_FRAME_ERROR_CONTROL_SIZE 2
 
 /** @brief Maximum Transfer Frame Data Field length the library carries, in octets. */
-#define TM_MAX_DATA_SIZE 1024
+#define SDLP_TM_MAX_DATA_SIZE 1024
 
 /**
  * @brief Transfer Frame Secondary Header sizing (CCSDS 132.0-B-3 §4.1.3).
@@ -36,15 +36,15 @@ extern "C"
  * @{
  */
 /** @brief Identification Field size in octets. */
-#define TM_SECONDARY_HEADER_ID_SIZE 1
+#define SDLP_TM_SECONDARY_HEADER_ID_SIZE 1
 /** @brief Minimum Secondary Header Data Field length in octets. */
-#define TM_SECONDARY_HEADER_MIN_DATA 1
+#define SDLP_TM_SECONDARY_HEADER_MIN_DATA 1
 /** @brief Maximum Secondary Header Data Field length in octets. */
-#define TM_SECONDARY_HEADER_MAX_DATA 63
+#define SDLP_TM_SECONDARY_HEADER_MAX_DATA 63
 /** @} */
 
 /** @brief Operational Control Field size in octets (§4.1.5). */
-#define TM_OCF_SIZE 4
+#define SDLP_TM_OCF_SIZE 4
 
 /**
  * @brief Number of distinct Master Channels whose frame counts are tracked concurrently.
@@ -56,8 +56,8 @@ extern "C"
  * ::SDLP_ERROR_NO_RESOURCE for a Spacecraft ID beyond this many. Define it when building
  * the library to change the limit.
  */
-#ifndef TM_MAX_MASTER_CHANNELS
-#    define TM_MAX_MASTER_CHANNELS 8
+#ifndef SDLP_TM_MAX_MASTER_CHANNELS
+#    define SDLP_TM_MAX_MASTER_CHANNELS 8
 #endif
 
 /**
@@ -65,11 +65,11 @@ extern "C"
  * @{
  */
 /** @brief Segment Length Identifier '11', mandatory when Sync Flag = 0 (§4.1.2.7.5.2). */
-#define TM_SEGMENT_LENGTH_ID_NO_SEGMENTATION 0x03u
+#define SDLP_TM_SEGMENT_LENGTH_ID_NO_SEGMENTATION 0x03u
 /** @brief First Header Pointer: no Packet starts in the Data Field (§4.1.2.7.6.4). */
-#define TM_FIRST_HEADER_POINTER_NO_PACKET 0x07FFu
+#define SDLP_TM_FIRST_HEADER_POINTER_NO_PACKET 0x07FFu
 /** @brief First Header Pointer: Only Idle Data (OID) Transfer Frame (§4.1.2.7.6.5). */
-#define TM_FIRST_HEADER_POINTER_ONLY_IDLE 0x07FEu
+#define SDLP_TM_FIRST_HEADER_POINTER_ONLY_IDLE 0x07FEu
 /** @} */
 
 /**
@@ -115,9 +115,9 @@ typedef struct
  */
 typedef struct
 {
-    uint8_t version : 2;                        /**< Secondary Header Version Number ('00'). */
-    uint8_t length : 6;                         /**< Data Field length (1..63); 0 = absent. */
-    uint8_t data[TM_SECONDARY_HEADER_MAX_DATA]; /**< Secondary Header Data Field. */
+    uint8_t version : 2;                             /**< Secondary Header Version Number ('00'). */
+    uint8_t length : 6;                              /**< Data Field length (1..63); 0 = absent. */
+    uint8_t data[SDLP_TM_SECONDARY_HEADER_MAX_DATA]; /**< Secondary Header Data Field. */
 } sdlp_tm_secondary_header_t;
 
 /**
@@ -129,9 +129,9 @@ typedef struct
 {
     sdlp_tm_header_t header;                     /**< Primary header fields. */
     sdlp_tm_secondary_header_t secondary_header; /**< Secondary Header (when its flag is set). */
-    uint8_t data[TM_MAX_DATA_SIZE];              /**< Transfer Frame Data Field. */
+    uint8_t data[SDLP_TM_MAX_DATA_SIZE];         /**< Transfer Frame Data Field. */
     uint16_t data_length;                        /**< Data Field length in octets. */
-    uint8_t ocf[TM_OCF_SIZE];                    /**< OCF (valid when ocf_flag is set). */
+    uint8_t ocf[SDLP_TM_OCF_SIZE];               /**< OCF (valid when ocf_flag is set). */
     uint16_t fecf;                               /**< Frame Error Control Field (app-managed). */
 } sdlp_tm_frame_t;
 
@@ -162,10 +162,10 @@ void sdlp_tm_unpack_data_field_status(uint16_t raw, sdlp_tm_data_field_status_t 
  * @param[in]  spacecraft_id      Spacecraft Identifier — masked to 10 bits.
  * @param[in]  virtual_channel_id Virtual Channel Identifier — masked to 3 bits.
  * @param[in]  data               Data Field content (copied into the frame).
- * @param[in]  data_length        Data Field length (0..::TM_MAX_DATA_SIZE).
+ * @param[in]  data_length        Data Field length (0..::SDLP_TM_MAX_DATA_SIZE).
  * @return ::SDLP_SUCCESS; ::SDLP_ERROR_INVALID_PARAM on NULL args or oversized data;
  *         ::SDLP_ERROR_NO_RESOURCE if @p spacecraft_id is a new Master Channel and
- *         ::TM_MAX_MASTER_CHANNELS of them are already tracked.
+ *         ::SDLP_TM_MAX_MASTER_CHANNELS of them are already tracked.
  */
 sdlp_status_t sdlp_tm_create_frame(sdlp_tm_frame_t *frame,
                                    uint16_t spacecraft_id,
@@ -177,7 +177,7 @@ sdlp_status_t sdlp_tm_create_frame(sdlp_tm_frame_t *frame,
  * @brief Forget every Master Channel and restart all frame counts from zero.
  *
  * Empties the table sdlp_tm_create_frame() uses to number frames, freeing all
- * ::TM_MAX_MASTER_CHANNELS slots. Meant for (re-)initialisation and for tests: in normal
+ * ::SDLP_TM_MAX_MASTER_CHANNELS slots. Meant for (re-)initialisation and for tests: in normal
  * operation a count must not be reset unless it is unavoidable (CCSDS 132.0-B-3
  * §4.1.2.5.3 and §4.1.2.6.3). Not thread-safe.
  */
@@ -191,7 +191,7 @@ void sdlp_tm_reset_frame_counts(void);
  *
  * @param[in,out] frame  Target frame.
  * @param[in]     data   Secondary Header Data Field content (copied).
- * @param[in]     length Data Field length (1..::TM_SECONDARY_HEADER_MAX_DATA).
+ * @param[in]     length Data Field length (1..::SDLP_TM_SECONDARY_HEADER_MAX_DATA).
  * @return ::SDLP_SUCCESS, or ::SDLP_ERROR_INVALID_PARAM on NULL args or bad length.
  */
 sdlp_status_t sdlp_tm_set_secondary_header(sdlp_tm_frame_t *frame,
@@ -209,7 +209,7 @@ sdlp_status_t sdlp_tm_set_secondary_header(sdlp_tm_frame_t *frame,
  * @param[in]     ocf   Four octets of OCF content (copied).
  * @return ::SDLP_SUCCESS, or ::SDLP_ERROR_INVALID_PARAM on NULL args.
  */
-sdlp_status_t sdlp_tm_set_ocf(sdlp_tm_frame_t *frame, const uint8_t ocf[TM_OCF_SIZE]);
+sdlp_status_t sdlp_tm_set_ocf(sdlp_tm_frame_t *frame, const uint8_t ocf[SDLP_TM_OCF_SIZE]);
 
 /**
  * @brief Serialise a TM Transfer Frame into a caller-supplied buffer.
@@ -223,7 +223,7 @@ sdlp_status_t sdlp_tm_set_ocf(sdlp_tm_frame_t *frame, const uint8_t ocf[TM_OCF_S
  * @param[in]  buffer_size  Buffer capacity in octets.
  * @param[out] encoded_size Bytes written on success.
  * @return ::SDLP_SUCCESS; ::SDLP_ERROR_INVALID_PARAM on NULL args, a Data Field longer
- *         than ::TM_MAX_DATA_SIZE, or the Secondary Header Flag set with an empty Secondary
+ *         than ::SDLP_TM_MAX_DATA_SIZE, or the Secondary Header Flag set with an empty Secondary
  *         Header; ::SDLP_ERROR_BUFFER_TOO_SMALL if @p buffer cannot hold the frame.
  */
 sdlp_status_t sdlp_tm_encode_frame(const sdlp_tm_frame_t *frame,

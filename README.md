@@ -18,7 +18,7 @@ Minimal, embedded-optimized implementation of **CCSDS Space Data Link Protocol (
 - **TM Secondary Header**: Optional Transfer Frame Secondary Header (1–63 data octets) via `sdlp_tm_set_secondary_header`, signaled by the Secondary Header Flag and parsed automatically on decode
 - **TM Operational Control Field**: Optional 4-octet OCF carried verbatim via `sdlp_tm_set_ocf` (the caller decides whether to set the OCF Flag); its content, e.g. a CLCW, is mission-specific and left to the application
 - **TC Frame Types**: Type-AD/BD/BC frames via `sdlp_tc_set_frame_type`, plus Unlock and Set V(R) control-command helpers (`sdlp_tc_create_unlock_frame`, `sdlp_tc_create_set_vr_frame`)
-- **TC Segment Header**: Optional MAP-based segmentation support (enabled with `TC_SEGMENT_HEADER_ENABLED`)
+- **TC Segment Header**: Optional MAP-based segmentation support (enabled with `SDLP_TC_SEGMENT_HEADER_ENABLED`)
 
 ### Design Principles
 
@@ -73,7 +73,7 @@ This will create:
 - `build/bin/tm_example` - TM frame example
 - `build/bin/tc_example` - TC frame example
 - `build/segment_header/tm_example` and `build/segment_header/tc_example` - the same
-  examples built with the optional TC Segment Header (`TC_SEGMENT_HEADER_ENABLED`)
+  examples built with the optional TC Segment Header (`SDLP_TC_SEGMENT_HEADER_ENABLED`)
 
 ### Build Library Only
 
@@ -96,7 +96,7 @@ make test
 ```
 
 The unit tests are built and run twice: against the library as `make lib` builds it, and
-again with the optional TC Segment Header compiled in (`TC_SEGMENT_HEADER_ENABLED`).
+again with the optional TC Segment Header compiled in (`SDLP_TC_SEGMENT_HEADER_ENABLED`).
 
 ### Coverage (HTML)
 
@@ -144,9 +144,9 @@ Look at the examples/
 ## Memory Usage (Estimated)
 
 - **Library (stripped)**: < 5 KB
-- **Per TM frame buffer**: `TM_PRIMARY_HEADER_SIZE` (6) + optional secondary header (≤ 64) + data + optional OCF (4) + 2 bytes FECF
-- **Per TC frame buffer**: `TC_PRIMARY_HEADER_SIZE` (5) + optional segment header (1) + data + 2 bytes FECF
-- **Maximum data per frame**: `TM_MAX_DATA_SIZE` = 1024 bytes (TM); `TC_MAX_DATA_SIZE` = 1017 bytes (TC — the whole frame is capped at 1024 octets per CCSDS 232.0-B-4; one less when the TC segment header is enabled)
+- **Per TM frame buffer**: `SDLP_TM_PRIMARY_HEADER_SIZE` (6) + optional secondary header (≤ 64) + data + optional OCF (4) + 2 bytes FECF
+- **Per TC frame buffer**: `SDLP_TC_PRIMARY_HEADER_SIZE` (5) + optional segment header (1) + data + 2 bytes FECF
+- **Maximum data per frame**: `SDLP_TM_MAX_DATA_SIZE` = 1024 bytes (TM); `SDLP_TC_MAX_DATA_SIZE` = 1017 bytes (TC — the whole frame is capped at 1024 octets per CCSDS 232.0-B-4; one less when the TC segment header is enabled)
 
 ## Limitations and Extensions
 
@@ -158,7 +158,7 @@ Current implementation focuses on core protocol features:
 - No SDLS (Space Data Link Security) option
 - No TM Only-Idle-Data (OID) frame generation or PN randomization
 - TM Transfer Frames are variable length; the mission-fixed frame length must be enforced by the caller
-- TM frame counts are kept per Master Channel / Virtual Channel in fixed static state (not thread-safe). At most `TM_MAX_MASTER_CHANNELS` (default 8) Spacecraft IDs are tracked; `sdlp_tm_create_frame` returns `SDLP_ERROR_NO_RESOURCE` for one more, and `sdlp_tm_reset_frame_counts` empties the table
+- TM frame counts are kept per Master Channel / Virtual Channel in fixed static state (not thread-safe). At most `SDLP_TM_MAX_MASTER_CHANNELS` (default 8) Spacecraft IDs are tracked; `sdlp_tm_create_frame` returns `SDLP_ERROR_NO_RESOURCE` for one more, and `sdlp_tm_reset_frame_counts` empties the table
 
 These can be extended as needed for specific mission requirements.
 

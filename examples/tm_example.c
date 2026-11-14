@@ -18,8 +18,8 @@
 int main(void)
 {
     sdlp_tm_frame_t frame;
-    uint8_t buffer[TM_PRIMARY_HEADER_SIZE + TM_MAX_DATA_SIZE + TM_OCF_SIZE +
-                   TM_FRAME_ERROR_CONTROL_SIZE];
+    uint8_t buffer[SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_MAX_DATA_SIZE + SDLP_TM_OCF_SIZE +
+                   SDLP_TM_FRAME_ERROR_CONTROL_SIZE];
     size_t encoded_size;
     sdlp_status_t result;
 
@@ -58,7 +58,7 @@ int main(void)
     /* The library leaves the Frame Error Control Field to the application.
      * Compute a CRC-16-CCITT over the encoded frame (excluding the trailing
      * 2-byte FECF) and write it into the FECF, mirroring CCSDS error control. */
-    size_t fecf_offset = encoded_size - TM_FRAME_ERROR_CONTROL_SIZE;
+    size_t fecf_offset = encoded_size - SDLP_TM_FRAME_ERROR_CONTROL_SIZE;
     uint16_t fecf = example_crc16(buffer, fecf_offset);
     buffer[fecf_offset] = (uint8_t)((fecf >> 8) & 0xFFu);
     buffer[fecf_offset + 1] = (uint8_t)(fecf & 0xFFu);
@@ -88,7 +88,7 @@ int main(void)
     printf("Data: %.*s\n", (int)decoded_frame.data_length, decoded_frame.data);
 
     /* Verify the FECF the same way it was produced (application-side). */
-    uint16_t expected_fecf = example_crc16(buffer, encoded_size - TM_FRAME_ERROR_CONTROL_SIZE);
+    uint16_t expected_fecf = example_crc16(buffer, encoded_size - SDLP_TM_FRAME_ERROR_CONTROL_SIZE);
     printf("FECF: 0x%04X (%s)\n",
            decoded_frame.fecf,
            decoded_frame.fecf == expected_fecf ? "valid" : "invalid");
@@ -97,7 +97,7 @@ int main(void)
      * Its content is mission-specific (e.g. a CLCW); here it is opaque. Setting it
      * raises the OCF Flag; leaving it unset emits a frame with no OCF. */
     printf("\nEncoding the same frame with an Operational Control Field...\n");
-    const uint8_t clcw[TM_OCF_SIZE] = {0};
+    const uint8_t clcw[SDLP_TM_OCF_SIZE] = {0};
     result = sdlp_tm_set_ocf(&frame, clcw);
     if (result != SDLP_SUCCESS)
     {
@@ -121,7 +121,7 @@ int main(void)
 
     printf("Encoded frame size: %zu bytes\n", encoded_size);
     printf("OCF Flag: %d, OCF:", decoded_frame.header.ocf_flag);
-    for (size_t i = 0; i < TM_OCF_SIZE; i++)
+    for (size_t i = 0; i < SDLP_TM_OCF_SIZE; i++)
     {
         printf(" %02X", decoded_frame.ocf[i]);
     }

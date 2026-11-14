@@ -20,7 +20,7 @@
 int main(void)
 {
     sdlp_tc_frame_t frame;
-    uint8_t buffer[TC_MAX_FRAME_SIZE];
+    uint8_t buffer[SDLP_TC_MAX_FRAME_SIZE];
     size_t encoded_size;
     sdlp_status_t result;
 
@@ -50,9 +50,9 @@ int main(void)
         return 1;
     }
 
-#ifdef TC_SEGMENT_HEADER_ENABLED
+#ifdef SDLP_TC_SEGMENT_HEADER_ENABLED
     /* Attach a segment header: no segmentation, MAP ID = 0 (CCSDS 232.0-B-4 4.1.3.2.2) */
-    result = sdlp_tc_set_segment_header(&frame, TC_SEQ_FLAG_NO_SEG, 0);
+    result = sdlp_tc_set_segment_header(&frame, SDLP_TC_SEQ_FLAG_NO_SEG, 0);
     if (result != SDLP_SUCCESS)
     {
         printf("Error setting segment header: %d\n", result);
@@ -75,7 +75,7 @@ int main(void)
     /* The library leaves the Frame Error Control Field to the application.
      * Compute a CRC-16-CCITT over the encoded frame (excluding the trailing
      * 2-byte FECF) and write it into the FECF, mirroring CCSDS error control. */
-    size_t fecf_offset = encoded_size - TC_FRAME_ERROR_CONTROL_SIZE;
+    size_t fecf_offset = encoded_size - SDLP_TC_FRAME_ERROR_CONTROL_SIZE;
     uint16_t fecf = example_crc16(buffer, fecf_offset);
     buffer[fecf_offset] = (uint8_t)((fecf >> 8) & 0xFFu);
     buffer[fecf_offset + 1] = (uint8_t)(fecf & 0xFFu);
@@ -102,7 +102,7 @@ int main(void)
     printf("Spacecraft ID: 0x%03X\n", decoded_frame.header.spacecraft_id);
     printf("Virtual Channel: %d\n", decoded_frame.header.virtual_channel_id);
     printf("Frame Length: %d\n", decoded_frame.header.frame_length);
-#ifdef TC_SEGMENT_HEADER_ENABLED
+#ifdef SDLP_TC_SEGMENT_HEADER_ENABLED
     printf("Segment Header: sequence_flags=0x%X map_id=%d\n",
            decoded_frame.segment_header.sequence_flags,
            decoded_frame.segment_header.map_id);
@@ -110,7 +110,7 @@ int main(void)
     printf("Command ID: 0x%02X\n", decoded_frame.data[0]);
 
     /* Verify the FECF the same way it was produced (application-side). */
-    uint16_t expected_fecf = example_crc16(buffer, encoded_size - TC_FRAME_ERROR_CONTROL_SIZE);
+    uint16_t expected_fecf = example_crc16(buffer, encoded_size - SDLP_TC_FRAME_ERROR_CONTROL_SIZE);
     printf("FECF: 0x%04X (%s)\n",
            decoded_frame.fecf,
            decoded_frame.fecf == expected_fecf ? "valid" : "invalid");
@@ -134,7 +134,7 @@ int main(void)
         return 1;
     }
 
-    fecf_offset = encoded_size - TC_FRAME_ERROR_CONTROL_SIZE;
+    fecf_offset = encoded_size - SDLP_TC_FRAME_ERROR_CONTROL_SIZE;
     uint16_t unlock_fecf = example_crc16(buffer, fecf_offset);
     buffer[fecf_offset] = (uint8_t)((unlock_fecf >> 8) & 0xFFu);
     buffer[fecf_offset + 1] = (uint8_t)(unlock_fecf & 0xFFu);
@@ -154,7 +154,7 @@ int main(void)
            decoded_frame.header.control_command_flag);
     printf("Control Command: 0x%02X (%s)\n",
            decoded_frame.data[0],
-           decoded_frame.data[0] == TC_CONTROL_CMD_UNLOCK ? "Unlock" : "unknown");
+           decoded_frame.data[0] == SDLP_TC_CONTROL_CMD_UNLOCK ? "Unlock" : "unknown");
 
     printf("\n=== TC Frame Example Complete ===\n");
 

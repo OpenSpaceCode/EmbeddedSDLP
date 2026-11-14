@@ -51,7 +51,7 @@ check_configuration() {
 }
 
 check_configuration "default configuration" "${ROOT_DIR}/build/obj"
-check_configuration "TC_SEGMENT_HEADER_ENABLED" "${ROOT_DIR}/build/segment_header"
+check_configuration "SDLP_TC_SEGMENT_HEADER_ENABLED" "${ROOT_DIR}/build/segment_header"
 
 # One HTML report for both configurations together, so it also shows the lines that only
 # the segment-header build compiles.

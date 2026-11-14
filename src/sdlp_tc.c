@@ -22,20 +22,20 @@
 static uint16_t sdlp_tc_frame_length(const sdlp_tc_frame_t *frame)
 {
     size_t frame_octets =
-        (size_t)TC_PRIMARY_HEADER_SIZE + frame->data_length + TC_FRAME_ERROR_CONTROL_SIZE;
-#ifdef TC_SEGMENT_HEADER_ENABLED
+        (size_t)SDLP_TC_PRIMARY_HEADER_SIZE + frame->data_length + SDLP_TC_FRAME_ERROR_CONTROL_SIZE;
+#ifdef SDLP_TC_SEGMENT_HEADER_ENABLED
     if (!frame->header.control_command_flag)
     {
-        frame_octets += TC_SEGMENT_HEADER_SIZE;
+        frame_octets += SDLP_TC_SEGMENT_HEADER_SIZE;
     }
 #endif
-    return (uint16_t)(frame_octets - TC_FRAME_LENGTH_OFFSET);
+    return (uint16_t)(frame_octets - SDLP_TC_FRAME_LENGTH_OFFSET);
 }
 
 /**
  * @brief Decode the 5-octet Transfer Frame Primary Header (CCSDS 232.0-B-4 §4.1.2).
  *
- * @param[in]  buffer Wire buffer holding at least ::TC_PRIMARY_HEADER_SIZE octets.
+ * @param[in]  buffer Wire buffer holding at least ::SDLP_TC_PRIMARY_HEADER_SIZE octets.
  * @param[out] header Decoded primary header fields.
  */
 static void sdlp_tc_decode_primary_header(const uint8_t *buffer, sdlp_tc_header_t *header)
@@ -61,9 +61,9 @@ sdlp_status_t sdlp_tc_create_frame(sdlp_tc_frame_t *frame,
 {
     /* A Type-D Frame Data Unit carries a Segment Header (when configured), which
      * consumes one octet of the Data Field budget (CCSDS 232.0-B-4, 4.1.3.2.1). */
-    size_t max_data = TC_MAX_DATA_SIZE;
-#ifdef TC_SEGMENT_HEADER_ENABLED
-    max_data -= TC_SEGMENT_HEADER_SIZE;
+    size_t max_data = SDLP_TC_MAX_DATA_SIZE;
+#ifdef SDLP_TC_SEGMENT_HEADER_ENABLED
+    max_data -= SDLP_TC_SEGMENT_HEADER_SIZE;
 #endif
 
     if ((!frame) || (!data) || (data_length == 0u) || (data_length > max_data))
@@ -127,7 +127,7 @@ sdlp_status_t sdlp_tc_create_unlock_frame(sdlp_tc_frame_t *frame,
                                           uint16_t spacecraft_id,
                                           uint8_t virtual_channel_id)
 {
-    const uint8_t cmd[TC_CONTROL_CMD_UNLOCK_LENGTH] = {TC_CONTROL_CMD_UNLOCK};
+    const uint8_t cmd[SDLP_TC_CONTROL_CMD_UNLOCK_LENGTH] = {SDLP_TC_CONTROL_CMD_UNLOCK};
 
     /* COP does not use the Frame Sequence Number of Type-B frames; it is set to
      * 'all zeroes' (CCSDS 232.0-B-4, 4.1.2.8 note 3). */
@@ -150,9 +150,9 @@ sdlp_status_t sdlp_tc_create_set_vr_frame(sdlp_tc_frame_t *frame,
                                           uint8_t virtual_channel_id,
                                           uint8_t vr)
 {
-    const uint8_t cmd[TC_CONTROL_CMD_SET_VR_LENGTH] = {TC_CONTROL_CMD_SET_VR_OCTET0,
-                                                       TC_CONTROL_CMD_SET_VR_OCTET1,
-                                                       vr};
+    const uint8_t cmd[SDLP_TC_CONTROL_CMD_SET_VR_LENGTH] = {SDLP_TC_CONTROL_CMD_SET_VR_OCTET0,
+                                                            SDLP_TC_CONTROL_CMD_SET_VR_OCTET1,
+                                                            vr};
 
     /* COP does not use the Frame Sequence Number of Type-B frames; it is set to
      * 'all zeroes' (CCSDS 232.0-B-4, 4.1.2.8 note 3). */
@@ -181,19 +181,19 @@ sdlp_status_t sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame,
     }
 
     size_t required_size =
-        (size_t)TC_PRIMARY_HEADER_SIZE + frame->data_length + TC_FRAME_ERROR_CONTROL_SIZE;
+        (size_t)SDLP_TC_PRIMARY_HEADER_SIZE + frame->data_length + SDLP_TC_FRAME_ERROR_CONTROL_SIZE;
 
-#ifdef TC_SEGMENT_HEADER_ENABLED
+#ifdef SDLP_TC_SEGMENT_HEADER_ENABLED
     if (!frame->header.control_command_flag)
     {
-        required_size += TC_SEGMENT_HEADER_SIZE;
+        required_size += SDLP_TC_SEGMENT_HEADER_SIZE;
     }
 #endif
 
-    /* A Transfer Frame is at most TC_MAX_FRAME_SIZE octets, the most the 10-bit Frame
+    /* A Transfer Frame is at most SDLP_TC_MAX_FRAME_SIZE octets, the most the 10-bit Frame
      * Length can express (CCSDS 232.0-B-4, 4.1.2.7). The same limit keeps data_length
      * within frame->data, so the copy below cannot read past the array. */
-    if (required_size > TC_MAX_FRAME_SIZE)
+    if (required_size > SDLP_TC_MAX_FRAME_SIZE)
     {
         return SDLP_ERROR_INVALID_PARAM;
     }
@@ -205,7 +205,7 @@ sdlp_status_t sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame,
 
     /* Frame Length = total octets in the emitted Transfer Frame - 1 (CCSDS 232.0-B-4,
      * 4.1.2.7.2), derived from the actual encoded size so it always matches the wire. */
-    uint16_t frame_length = (uint16_t)(required_size - TC_FRAME_LENGTH_OFFSET);
+    uint16_t frame_length = (uint16_t)(required_size - SDLP_TC_FRAME_LENGTH_OFFSET);
 
     size_t offset = 0;
 
@@ -220,7 +220,7 @@ sdlp_status_t sdlp_tc_encode_frame(const sdlp_tc_frame_t *frame,
     buffer[offset++] = (uint8_t)(frame_length & 0xFFu);
     buffer[offset++] = frame->header.frame_sequence_number;
 
-#ifdef TC_SEGMENT_HEADER_ENABLED
+#ifdef SDLP_TC_SEGMENT_HEADER_ENABLED
     if (!frame->header.control_command_flag)
     {
         buffer[offset++] = (uint8_t)(((frame->segment_header.sequence_flags & 0x03u) << 6) |
@@ -246,7 +246,7 @@ sdlp_status_t sdlp_tc_decode_frame(const uint8_t *buffer,
                                    sdlp_tc_frame_t *frame)
 {
     if ((!buffer) || (!frame) ||
-        (buffer_size < (TC_PRIMARY_HEADER_SIZE + TC_FRAME_ERROR_CONTROL_SIZE)))
+        (buffer_size < (SDLP_TC_PRIMARY_HEADER_SIZE + SDLP_TC_FRAME_ERROR_CONTROL_SIZE)))
     {
         return SDLP_ERROR_INVALID_PARAM;
     }
@@ -263,38 +263,38 @@ sdlp_status_t sdlp_tc_decode_frame(const uint8_t *buffer,
 
     /* Frame Validation: the Frame Length must equal the actual octet count minus one
      * (CCSDS 232.0-B-4, 4.1.2.7.2). */
-    if (((size_t)header.frame_length + TC_FRAME_LENGTH_OFFSET) != buffer_size)
+    if (((size_t)header.frame_length + SDLP_TC_FRAME_LENGTH_OFFSET) != buffer_size)
     {
         return SDLP_ERROR_INVALID_FRAME;
     }
 
-    size_t data_offset = TC_PRIMARY_HEADER_SIZE;
+    size_t data_offset = SDLP_TC_PRIMARY_HEADER_SIZE;
 
-#ifdef TC_SEGMENT_HEADER_ENABLED
+#ifdef SDLP_TC_SEGMENT_HEADER_ENABLED
     sdlp_tc_segment_header_t segment_header = {0};
     if (!header.control_command_flag)
     {
-        if (buffer_size <
-            (TC_PRIMARY_HEADER_SIZE + TC_SEGMENT_HEADER_SIZE + TC_FRAME_ERROR_CONTROL_SIZE))
+        if (buffer_size < (SDLP_TC_PRIMARY_HEADER_SIZE + SDLP_TC_SEGMENT_HEADER_SIZE +
+                           SDLP_TC_FRAME_ERROR_CONTROL_SIZE))
         {
             return SDLP_ERROR_INVALID_FRAME;
         }
         segment_header.sequence_flags = (buffer[data_offset] >> 6) & 0x03u;
         segment_header.map_id = buffer[data_offset] & 0x3Fu;
-        data_offset += TC_SEGMENT_HEADER_SIZE;
+        data_offset += SDLP_TC_SEGMENT_HEADER_SIZE;
     }
 #endif
 
     /* The Frame Length validation above pins buffer_size to frame_length + 1 (<= 1024),
-     * so data_length is inherently <= TC_MAX_DATA_SIZE and the Data Field fits. */
-    const size_t data_length = buffer_size - data_offset - TC_FRAME_ERROR_CONTROL_SIZE;
+     * so data_length is inherently <= SDLP_TC_MAX_DATA_SIZE and the Data Field fits. */
+    const size_t data_length = buffer_size - data_offset - SDLP_TC_FRAME_ERROR_CONTROL_SIZE;
     const size_t fecf_offset = data_offset + data_length;
 
     /* Every check has passed. The output frame is written only from here on, so a
      * rejected buffer leaves it exactly as the caller passed it. */
     memset(frame, 0, sizeof(sdlp_tc_frame_t));
     frame->header = header;
-#ifdef TC_SEGMENT_HEADER_ENABLED
+#ifdef SDLP_TC_SEGMENT_HEADER_ENABLED
     frame->segment_header = segment_header;
 #endif
     memcpy(frame->data, &buffer[data_offset], data_length);
@@ -307,7 +307,7 @@ sdlp_status_t sdlp_tc_decode_frame(const uint8_t *buffer,
     return SDLP_SUCCESS;
 }
 
-#ifdef TC_SEGMENT_HEADER_ENABLED
+#ifdef SDLP_TC_SEGMENT_HEADER_ENABLED
 sdlp_status_t sdlp_tc_set_segment_header(sdlp_tc_frame_t *frame,
                                          sdlp_tc_seq_flag_t sequence_flags,
                                          uint8_t map_id)

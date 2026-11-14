@@ -13,11 +13,11 @@
 #include <string.h>
 
 /** @brief Scratch buffer size for rejected-encode checks: holds a frame just over the limit. */
-#define TEST_TM_SCRATCH_SIZE (2 * TM_MAX_DATA_SIZE)
+#define TEST_TM_SCRATCH_SIZE (2 * SDLP_TM_MAX_DATA_SIZE)
 
 /** @brief Size of a frame with a full Data Field and neither Secondary Header nor OCF. */
 #define TEST_TM_MAX_PLAIN_FRAME_SIZE                                                               \
-    (TM_PRIMARY_HEADER_SIZE + TM_MAX_DATA_SIZE + TM_FRAME_ERROR_CONTROL_SIZE)
+    (SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_MAX_DATA_SIZE + SDLP_TM_FRAME_ERROR_CONTROL_SIZE)
 
 /** @brief Byte pre-filled into outputs that a rejected call must leave untouched. */
 #define TEST_TM_SENTINEL 0xA5
@@ -38,7 +38,7 @@ static int test_tm_create_frame_invalid_params(void)
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tm_create_frame(NULL, 1, 1, payload, 1));
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tm_create_frame(&frame, 1, 1, NULL, 1));
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM,
-                  sdlp_tm_create_frame(&frame, 1, 1, payload, TM_MAX_DATA_SIZE + 1));
+                  sdlp_tm_create_frame(&frame, 1, 1, payload, SDLP_TM_MAX_DATA_SIZE + 1));
 
     return 0;
 }
@@ -48,7 +48,8 @@ static int test_tm_encode_decode_roundtrip(void)
     sdlp_tm_frame_t frame;
     sdlp_tm_frame_t decoded;
     const uint8_t payload[] = {0x10u, 0x20u, 0x30u, 0x40u, 0x50u};
-    uint8_t encoded[TM_PRIMARY_HEADER_SIZE + TM_MAX_DATA_SIZE + TM_FRAME_ERROR_CONTROL_SIZE];
+    uint8_t encoded[SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_MAX_DATA_SIZE +
+                    SDLP_TM_FRAME_ERROR_CONTROL_SIZE];
     size_t encoded_size = 0;
 
     ASSERT_EQ_INT(SDLP_SUCCESS,
@@ -56,7 +57,8 @@ static int test_tm_encode_decode_roundtrip(void)
     ASSERT_EQ_INT(SDLP_SUCCESS,
                   sdlp_tm_encode_frame(&frame, encoded, sizeof(encoded), &encoded_size));
 
-    ASSERT_EQ_INT(TM_PRIMARY_HEADER_SIZE + (int)sizeof(payload) + TM_FRAME_ERROR_CONTROL_SIZE,
+    ASSERT_EQ_INT(SDLP_TM_PRIMARY_HEADER_SIZE + (int)sizeof(payload) +
+                      SDLP_TM_FRAME_ERROR_CONTROL_SIZE,
                   (int)encoded_size);
 
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_decode_frame(encoded, encoded_size, &decoded));
@@ -70,7 +72,7 @@ static int test_tm_encode_decode_roundtrip(void)
     /* The default Data Field Status round-trips: Sync Flag = 0 with a '11' Segment
      * Length Identifier (CCSDS 132.0-B-3, 4.1.2.7.5.2). */
     ASSERT_EQ_INT(0, decoded.header.transfer_frame_data_field_status.sync_flag);
-    ASSERT_EQ_INT(TM_SEGMENT_LENGTH_ID_NO_SEGMENTATION,
+    ASSERT_EQ_INT(SDLP_TM_SEGMENT_LENGTH_ID_NO_SEGMENTATION,
                   decoded.header.transfer_frame_data_field_status.segment_length_id);
 
     return 0;
@@ -85,7 +87,7 @@ static int test_tm_data_field_status_codec(void)
     status.secondary_header_flag = 1;
     status.sync_flag = 0;
     status.packet_order_flag = 0;
-    status.segment_length_id = TM_SEGMENT_LENGTH_ID_NO_SEGMENTATION;
+    status.segment_length_id = SDLP_TM_SEGMENT_LENGTH_ID_NO_SEGMENTATION;
     status.first_header_pointer = 0x123u;
 
     /* MSB-first layout: shf<<15 | slid<<11 | fhp = 0x8000 | 0x1800 | 0x123. */
@@ -96,7 +98,7 @@ static int test_tm_data_field_status_codec(void)
     ASSERT_EQ_INT(1, parsed.secondary_header_flag);
     ASSERT_EQ_INT(0, parsed.sync_flag);
     ASSERT_EQ_INT(0, parsed.packet_order_flag);
-    ASSERT_EQ_INT(TM_SEGMENT_LENGTH_ID_NO_SEGMENTATION, parsed.segment_length_id);
+    ASSERT_EQ_INT(SDLP_TM_SEGMENT_LENGTH_ID_NO_SEGMENTATION, parsed.segment_length_id);
     ASSERT_EQ_INT(0x123u, parsed.first_header_pointer);
 
     return 0;
@@ -106,7 +108,7 @@ static int test_tm_encode_buffer_too_small(void)
 {
     sdlp_tm_frame_t frame;
     const uint8_t payload[] = {0x01u, 0x02u, 0x03u};
-    uint8_t encoded[TM_PRIMARY_HEADER_SIZE + 2 + TM_FRAME_ERROR_CONTROL_SIZE];
+    uint8_t encoded[SDLP_TM_PRIMARY_HEADER_SIZE + 2 + SDLP_TM_FRAME_ERROR_CONTROL_SIZE];
     size_t encoded_size = 0;
 
     ASSERT_EQ_INT(SDLP_SUCCESS,
@@ -122,7 +124,8 @@ static int test_tm_fecf_passthrough(void)
     sdlp_tm_frame_t frame;
     sdlp_tm_frame_t decoded;
     const uint8_t payload[] = {0xDEu, 0xADu, 0xBEu, 0xEFu};
-    uint8_t encoded[TM_PRIMARY_HEADER_SIZE + TM_MAX_DATA_SIZE + TM_FRAME_ERROR_CONTROL_SIZE];
+    uint8_t encoded[SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_MAX_DATA_SIZE +
+                    SDLP_TM_FRAME_ERROR_CONTROL_SIZE];
     size_t encoded_size = 0;
 
     ASSERT_EQ_INT(SDLP_SUCCESS,
@@ -179,8 +182,9 @@ static int test_tm_secondary_header_roundtrip(void)
     sdlp_tm_frame_t decoded;
     const uint8_t payload[] = {0x10u, 0x20u, 0x30u};
     const uint8_t sh_data[] = {0xAAu, 0xBBu, 0xCCu, 0xDDu};
-    uint8_t encoded[TM_PRIMARY_HEADER_SIZE + TM_SECONDARY_HEADER_ID_SIZE +
-                    TM_SECONDARY_HEADER_MAX_DATA + TM_MAX_DATA_SIZE + TM_FRAME_ERROR_CONTROL_SIZE];
+    uint8_t encoded[SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_SECONDARY_HEADER_ID_SIZE +
+                    SDLP_TM_SECONDARY_HEADER_MAX_DATA + SDLP_TM_MAX_DATA_SIZE +
+                    SDLP_TM_FRAME_ERROR_CONTROL_SIZE];
     size_t encoded_size = 0;
 
     ASSERT_EQ_INT(SDLP_SUCCESS,
@@ -192,8 +196,9 @@ static int test_tm_secondary_header_roundtrip(void)
     ASSERT_EQ_INT(SDLP_SUCCESS,
                   sdlp_tm_encode_frame(&frame, encoded, sizeof(encoded), &encoded_size));
     /* primary(6) + ID(1) + secondary data(4) + payload(3) + FECF(2) */
-    ASSERT_EQ_INT(TM_PRIMARY_HEADER_SIZE + TM_SECONDARY_HEADER_ID_SIZE + (int)sizeof(sh_data) +
-                      (int)sizeof(payload) + TM_FRAME_ERROR_CONTROL_SIZE,
+    ASSERT_EQ_INT(SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_SECONDARY_HEADER_ID_SIZE +
+                      (int)sizeof(sh_data) + (int)sizeof(payload) +
+                      SDLP_TM_FRAME_ERROR_CONTROL_SIZE,
                   (int)encoded_size);
 
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_decode_frame(encoded, encoded_size, &decoded));
@@ -212,15 +217,16 @@ static int test_tm_set_secondary_header_invalid(void)
     sdlp_tm_frame_t frame;
     sdlp_tm_frame_t before;
     const uint8_t payload[1] = {0x01u};
-    const uint8_t sh_data[TM_SECONDARY_HEADER_MAX_DATA + 1] = {0xFFu};
+    const uint8_t sh_data[SDLP_TM_SECONDARY_HEADER_MAX_DATA + 1] = {0xFFu};
 
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_create_frame(&frame, 1, 0, payload, 1));
     memcpy(&before, &frame, sizeof(frame));
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tm_set_secondary_header(NULL, sh_data, 1));
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tm_set_secondary_header(&frame, NULL, 1));
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tm_set_secondary_header(&frame, sh_data, 0));
-    ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM,
-                  sdlp_tm_set_secondary_header(&frame, sh_data, TM_SECONDARY_HEADER_MAX_DATA + 1));
+    ASSERT_EQ_INT(
+        SDLP_ERROR_INVALID_PARAM,
+        sdlp_tm_set_secondary_header(&frame, sh_data, SDLP_TM_SECONDARY_HEADER_MAX_DATA + 1));
     /* A rejected call leaves the whole frame as it was, the Secondary Header Flag included. */
     ASSERT_EQ_MEM(&before, &frame, sizeof(frame));
 
@@ -232,9 +238,9 @@ static int test_tm_ocf_roundtrip(void)
     sdlp_tm_frame_t frame;
     sdlp_tm_frame_t decoded;
     const uint8_t payload[] = {0x10u, 0x20u, 0x30u};
-    const uint8_t ocf[TM_OCF_SIZE] = {0x01u, 0x02u, 0x03u, 0x04u};
-    uint8_t encoded[TM_PRIMARY_HEADER_SIZE + TM_MAX_DATA_SIZE + TM_OCF_SIZE +
-                    TM_FRAME_ERROR_CONTROL_SIZE];
+    const uint8_t ocf[SDLP_TM_OCF_SIZE] = {0x01u, 0x02u, 0x03u, 0x04u};
+    uint8_t encoded[SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_MAX_DATA_SIZE + SDLP_TM_OCF_SIZE +
+                    SDLP_TM_FRAME_ERROR_CONTROL_SIZE];
     size_t encoded_size = 0;
 
     ASSERT_EQ_INT(SDLP_SUCCESS,
@@ -248,13 +254,13 @@ static int test_tm_ocf_roundtrip(void)
     ASSERT_EQ_INT(SDLP_SUCCESS,
                   sdlp_tm_encode_frame(&frame, encoded, sizeof(encoded), &encoded_size));
     /* primary(6) + payload(3) + OCF(4) + FECF(2) */
-    ASSERT_EQ_INT(TM_PRIMARY_HEADER_SIZE + (int)sizeof(payload) + TM_OCF_SIZE +
-                      TM_FRAME_ERROR_CONTROL_SIZE,
+    ASSERT_EQ_INT(SDLP_TM_PRIMARY_HEADER_SIZE + (int)sizeof(payload) + SDLP_TM_OCF_SIZE +
+                      SDLP_TM_FRAME_ERROR_CONTROL_SIZE,
                   (int)encoded_size);
 
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_decode_frame(encoded, encoded_size, &decoded));
     ASSERT_EQ_INT(1, decoded.header.ocf_flag);
-    ASSERT_EQ_MEM(ocf, decoded.ocf, TM_OCF_SIZE);
+    ASSERT_EQ_MEM(ocf, decoded.ocf, SDLP_TM_OCF_SIZE);
     /* The OCF sits between the Data Field and the FECF; the data must be intact. */
     ASSERT_EQ_INT((int)sizeof(payload), decoded.data_length);
     ASSERT_EQ_MEM(payload, decoded.data, sizeof(payload));
@@ -268,10 +274,10 @@ static int test_tm_secondary_header_and_ocf_roundtrip(void)
     sdlp_tm_frame_t decoded;
     const uint8_t payload[] = {0xAAu, 0xBBu};
     const uint8_t sh_data[] = {0x11u, 0x22u, 0x33u};
-    const uint8_t ocf[TM_OCF_SIZE] = {0xDEu, 0xADu, 0xBEu, 0xEFu};
-    uint8_t encoded[TM_PRIMARY_HEADER_SIZE + TM_SECONDARY_HEADER_ID_SIZE +
-                    TM_SECONDARY_HEADER_MAX_DATA + TM_MAX_DATA_SIZE + TM_OCF_SIZE +
-                    TM_FRAME_ERROR_CONTROL_SIZE];
+    const uint8_t ocf[SDLP_TM_OCF_SIZE] = {0xDEu, 0xADu, 0xBEu, 0xEFu};
+    uint8_t encoded[SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_SECONDARY_HEADER_ID_SIZE +
+                    SDLP_TM_SECONDARY_HEADER_MAX_DATA + SDLP_TM_MAX_DATA_SIZE + SDLP_TM_OCF_SIZE +
+                    SDLP_TM_FRAME_ERROR_CONTROL_SIZE];
     size_t encoded_size = 0;
 
     ASSERT_EQ_INT(SDLP_SUCCESS,
@@ -283,15 +289,16 @@ static int test_tm_secondary_header_and_ocf_roundtrip(void)
     ASSERT_EQ_INT(SDLP_SUCCESS,
                   sdlp_tm_encode_frame(&frame, encoded, sizeof(encoded), &encoded_size));
     /* primary(6) + ID(1) + secondary(3) + payload(2) + OCF(4) + FECF(2) */
-    ASSERT_EQ_INT(TM_PRIMARY_HEADER_SIZE + TM_SECONDARY_HEADER_ID_SIZE + (int)sizeof(sh_data) +
-                      (int)sizeof(payload) + TM_OCF_SIZE + TM_FRAME_ERROR_CONTROL_SIZE,
+    ASSERT_EQ_INT(SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_SECONDARY_HEADER_ID_SIZE +
+                      (int)sizeof(sh_data) + (int)sizeof(payload) + SDLP_TM_OCF_SIZE +
+                      SDLP_TM_FRAME_ERROR_CONTROL_SIZE,
                   (int)encoded_size);
 
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_decode_frame(encoded, encoded_size, &decoded));
     ASSERT_EQ_INT(1, decoded.header.transfer_frame_data_field_status.secondary_header_flag);
     ASSERT_EQ_INT(1, decoded.header.ocf_flag);
     ASSERT_EQ_MEM(sh_data, decoded.secondary_header.data, sizeof(sh_data));
-    ASSERT_EQ_MEM(ocf, decoded.ocf, TM_OCF_SIZE);
+    ASSERT_EQ_MEM(ocf, decoded.ocf, SDLP_TM_OCF_SIZE);
     ASSERT_EQ_INT((int)sizeof(payload), decoded.data_length);
     ASSERT_EQ_MEM(payload, decoded.data, sizeof(payload));
 
@@ -303,7 +310,7 @@ static int test_tm_set_ocf_invalid(void)
     sdlp_tm_frame_t frame;
     sdlp_tm_frame_t before;
     const uint8_t payload[1] = {0x01u};
-    const uint8_t ocf[TM_OCF_SIZE] = {0};
+    const uint8_t ocf[SDLP_TM_OCF_SIZE] = {0};
 
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_create_frame(&frame, 1, 0, payload, 1));
     memcpy(&before, &frame, sizeof(frame));
@@ -340,10 +347,11 @@ static int test_tm_null_params(void)
     /* decode rejects a NULL buffer, a NULL frame, and a buffer shorter than the header + FECF. */
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tm_decode_frame(NULL, sizeof(buffer), &decoded));
     ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM, sdlp_tm_decode_frame(buffer, sizeof(buffer), NULL));
-    ASSERT_EQ_INT(SDLP_ERROR_INVALID_PARAM,
-                  sdlp_tm_decode_frame(buffer,
-                                       TM_PRIMARY_HEADER_SIZE + TM_FRAME_ERROR_CONTROL_SIZE - 1,
-                                       &decoded));
+    ASSERT_EQ_INT(
+        SDLP_ERROR_INVALID_PARAM,
+        sdlp_tm_decode_frame(buffer,
+                             SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_FRAME_ERROR_CONTROL_SIZE - 1,
+                             &decoded));
 
     return 0;
 }
@@ -373,10 +381,10 @@ static int test_tm_decode_malformed(void)
         uint8_t buf[8] = {0, 0x01u};
         ASSERT_EQ_INT(SDLP_ERROR_INVALID_FRAME, sdlp_tm_decode_frame(buf, sizeof(buf), &decoded));
     }
-    /* Data Field larger than TM_MAX_DATA_SIZE. */
+    /* Data Field larger than SDLP_TM_MAX_DATA_SIZE. */
     {
-        static uint8_t
-            big[TM_PRIMARY_HEADER_SIZE + TM_MAX_DATA_SIZE + 1 + TM_FRAME_ERROR_CONTROL_SIZE] = {0};
+        static uint8_t big[SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_MAX_DATA_SIZE + 1 +
+                           SDLP_TM_FRAME_ERROR_CONTROL_SIZE] = {0};
         ASSERT_EQ_INT(SDLP_ERROR_INVALID_FRAME, sdlp_tm_decode_frame(big, sizeof(big), &decoded));
     }
 
@@ -425,7 +433,8 @@ static int test_tm_expect_decode_rejected(const uint8_t *buffer,
 
 static int test_tm_decode_failure_leaves_frame_unchanged(void)
 {
-    const uint8_t too_short[TM_PRIMARY_HEADER_SIZE + TM_FRAME_ERROR_CONTROL_SIZE - 1] = {0};
+    const uint8_t too_short[SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_FRAME_ERROR_CONTROL_SIZE - 1] = {
+        0};
     /* Secondary Header Flag set (byte 4 bit 7), no room for its Identification Field plus
      * one Data Field octet. */
     const uint8_t no_secondary_room[9] = {0, 0, 0, 0, 0x80u};
@@ -435,9 +444,9 @@ static int test_tm_decode_failure_leaves_frame_unchanged(void)
     const uint8_t secondary_overrun[10] = {0, 0, 0, 0, 0x80u, 0, 0x0Au};
     /* OCF Flag set (byte 1 bit 0), no room for the 4-octet OCF. */
     const uint8_t no_ocf_room[8] = {0, 0x01u};
-    /* Data Field one octet longer than TM_MAX_DATA_SIZE. */
-    static const uint8_t oversized[TM_PRIMARY_HEADER_SIZE + TM_MAX_DATA_SIZE + 1 +
-                                   TM_FRAME_ERROR_CONTROL_SIZE] = {0};
+    /* Data Field one octet longer than SDLP_TM_MAX_DATA_SIZE. */
+    static const uint8_t oversized[SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_MAX_DATA_SIZE + 1 +
+                                   SDLP_TM_FRAME_ERROR_CONTROL_SIZE] = {0};
 
     ASSERT_EQ_INT(
         0,
@@ -472,7 +481,8 @@ static int test_tm_decode_data_length_beyond_16_bits(void)
     /* A Data Field of 65546 octets reads as 10 once narrowed to 16 bits, so the decoder
      * must range-check the length before narrowing it. */
     const size_t data_length = (size_t)UINT16_MAX + 1u + 10u;
-    const size_t buffer_size = TM_PRIMARY_HEADER_SIZE + data_length + TM_FRAME_ERROR_CONTROL_SIZE;
+    const size_t buffer_size =
+        SDLP_TM_PRIMARY_HEADER_SIZE + data_length + SDLP_TM_FRAME_ERROR_CONTROL_SIZE;
     uint8_t *buffer = calloc(buffer_size, 1);
     int result;
 
@@ -523,7 +533,7 @@ static int test_tm_check_max_data_roundtrip(uint8_t *encoded)
 {
     sdlp_tm_frame_t frame;
     sdlp_tm_frame_t decoded;
-    uint8_t payload[TM_MAX_DATA_SIZE];
+    uint8_t payload[SDLP_TM_MAX_DATA_SIZE];
     size_t encoded_size = 0;
 
     for (size_t i = 0; i < sizeof(payload); i++)
@@ -544,7 +554,7 @@ static int test_tm_check_max_data_roundtrip(uint8_t *encoded)
     ASSERT_EQ_INT(TEST_TM_MAX_PLAIN_FRAME_SIZE, encoded_size);
 
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_decode_frame(encoded, encoded_size, &decoded));
-    ASSERT_EQ_INT(TM_MAX_DATA_SIZE, decoded.data_length);
+    ASSERT_EQ_INT(SDLP_TM_MAX_DATA_SIZE, decoded.data_length);
     ASSERT_EQ_MEM(payload, decoded.data, sizeof(payload));
 
     return 0;
@@ -571,7 +581,7 @@ static int test_tm_encode_rejects_oversized_data(void)
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_create_frame(&frame, 1, 0, payload, 1));
 
     /* One octet more than the Data Field array holds. */
-    frame.data_length = TM_MAX_DATA_SIZE + 1;
+    frame.data_length = SDLP_TM_MAX_DATA_SIZE + 1;
     ASSERT_EQ_INT(
         0,
         test_tm_expect_encode_rejected(&frame, TEST_TM_SCRATCH_SIZE, SDLP_ERROR_INVALID_PARAM));
@@ -618,7 +628,7 @@ static int test_tm_check_secondary_header_roundtrip(uint8_t length,
     sdlp_tm_frame_t frame;
     sdlp_tm_frame_t decoded;
     const uint8_t payload[1] = {0x5Au};
-    uint8_t sh_data[TM_SECONDARY_HEADER_MAX_DATA];
+    uint8_t sh_data[SDLP_TM_SECONDARY_HEADER_MAX_DATA];
     size_t encoded_size = 0;
 
     for (size_t i = 0; i < sizeof(sh_data); i++)
@@ -632,7 +642,7 @@ static int test_tm_check_secondary_header_roundtrip(uint8_t length,
     ASSERT_EQ_INT((int)frame_size, (int)encoded_size);
     /* Identification Field: Version '00' in the top two bits, then the Length, which
      * equals the Data Field length (4.1.3.2). */
-    ASSERT_EQ_INT(length, encoded[TM_PRIMARY_HEADER_SIZE]);
+    ASSERT_EQ_INT(length, encoded[SDLP_TM_PRIMARY_HEADER_SIZE]);
 
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_decode_frame(encoded, encoded_size, &decoded));
     ASSERT_EQ_INT(length, decoded.secondary_header.length);
@@ -651,8 +661,8 @@ static int test_tm_check_secondary_header_roundtrip(uint8_t length,
  */
 static int test_tm_secondary_header_roundtrip_at(uint8_t length)
 {
-    const size_t frame_size = TM_PRIMARY_HEADER_SIZE + TM_SECONDARY_HEADER_ID_SIZE + length + 1u +
-                              TM_FRAME_ERROR_CONTROL_SIZE;
+    const size_t frame_size = SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_SECONDARY_HEADER_ID_SIZE +
+                              length + 1u + SDLP_TM_FRAME_ERROR_CONTROL_SIZE;
     uint8_t *encoded = malloc(frame_size);
     int result;
 
@@ -666,7 +676,7 @@ static int test_tm_secondary_header_roundtrip_at(uint8_t length)
 static int test_tm_secondary_header_length_limits(void)
 {
     ASSERT_EQ_INT(0, test_tm_secondary_header_roundtrip_at(1));
-    ASSERT_EQ_INT(0, test_tm_secondary_header_roundtrip_at(TM_SECONDARY_HEADER_MAX_DATA));
+    ASSERT_EQ_INT(0, test_tm_secondary_header_roundtrip_at(SDLP_TM_SECONDARY_HEADER_MAX_DATA));
 
     return 0;
 }
@@ -716,7 +726,7 @@ static int test_tm_create_failure_leaves_state_unchanged(void)
     ASSERT_EQ_INT(0,
                   test_tm_expect_create_rejected(scid,
                                                  payload,
-                                                 TM_MAX_DATA_SIZE + 1,
+                                                 SDLP_TM_MAX_DATA_SIZE + 1,
                                                  SDLP_ERROR_INVALID_PARAM));
 
     /* Neither rejected call consumed a count: the next frame carries the next number. */
@@ -733,12 +743,12 @@ static int test_tm_master_channel_table_full(void)
     const uint8_t payload[1] = {0x5Au};
     const uint16_t payload_size = (uint16_t)sizeof(payload);
     const uint16_t first_scid = 0x200u;
-    const uint16_t extra_scid = (uint16_t)(first_scid + TM_MAX_MASTER_CHANNELS);
+    const uint16_t extra_scid = (uint16_t)(first_scid + SDLP_TM_MAX_MASTER_CHANNELS);
     const uint8_t vcid = 0;
 
     /* A call rejected for its arguments claims no slot, however many Spacecraft IDs
      * are tried. */
-    for (uint16_t i = 0; i <= TM_MAX_MASTER_CHANNELS; i++)
+    for (uint16_t i = 0; i <= SDLP_TM_MAX_MASTER_CHANNELS; i++)
     {
         ASSERT_EQ_INT(0,
                       test_tm_expect_create_rejected((uint16_t)(first_scid + i),
@@ -748,7 +758,7 @@ static int test_tm_master_channel_table_full(void)
     }
 
     /* Every slot can be claimed, the last one included. */
-    for (uint16_t i = 0; i < TM_MAX_MASTER_CHANNELS; i++)
+    for (uint16_t i = 0; i < SDLP_TM_MAX_MASTER_CHANNELS; i++)
     {
         ASSERT_EQ_INT(
             SDLP_SUCCESS,
@@ -834,7 +844,7 @@ static int test_tm_golden_frame_encode(void)
     sdlp_tm_frame_t frame;
     const uint8_t payload[] = {0xD1u, 0xD2u};
     const uint8_t sh_data[] = {0x51u, 0x52u};
-    const uint8_t ocf[TM_OCF_SIZE] = {0xC1u, 0xC2u, 0xC3u, 0xC4u};
+    const uint8_t ocf[SDLP_TM_OCF_SIZE] = {0xC1u, 0xC2u, 0xC3u, 0xC4u};
     uint8_t encoded[sizeof(test_tm_golden)];
     size_t encoded_size = 0;
 
@@ -863,7 +873,7 @@ static int test_tm_golden_frame_decode(void)
     const sdlp_tm_data_field_status_t *status = &decoded.header.transfer_frame_data_field_status;
     const uint8_t payload[] = {0xD1u, 0xD2u};
     const uint8_t sh_data[] = {0x51u, 0x52u};
-    const uint8_t ocf[TM_OCF_SIZE] = {0xC1u, 0xC2u, 0xC3u, 0xC4u};
+    const uint8_t ocf[SDLP_TM_OCF_SIZE] = {0xC1u, 0xC2u, 0xC3u, 0xC4u};
 
     ASSERT_EQ_INT(SDLP_SUCCESS,
                   sdlp_tm_decode_frame(test_tm_golden, sizeof(test_tm_golden), &decoded));
@@ -876,7 +886,7 @@ static int test_tm_golden_frame_decode(void)
     ASSERT_EQ_INT(1, status->secondary_header_flag);
     ASSERT_EQ_INT(0, status->sync_flag);
     ASSERT_EQ_INT(0, status->packet_order_flag);
-    ASSERT_EQ_INT(TM_SEGMENT_LENGTH_ID_NO_SEGMENTATION, status->segment_length_id);
+    ASSERT_EQ_INT(SDLP_TM_SEGMENT_LENGTH_ID_NO_SEGMENTATION, status->segment_length_id);
     ASSERT_EQ_INT(0x123u, status->first_header_pointer);
     ASSERT_EQ_INT((int)sizeof(sh_data), decoded.secondary_header.length);
     ASSERT_EQ_MEM(sh_data, decoded.secondary_header.data, sizeof(sh_data));
@@ -892,8 +902,8 @@ static int test_tm_primary_header_all_zero(void)
 {
     sdlp_tm_frame_t frame;
     const uint8_t payload[1] = {0x00u};
-    const uint8_t all_zero[TM_PRIMARY_HEADER_SIZE] = {0};
-    uint8_t encoded[TM_PRIMARY_HEADER_SIZE + 1 + TM_FRAME_ERROR_CONTROL_SIZE];
+    const uint8_t all_zero[SDLP_TM_PRIMARY_HEADER_SIZE] = {0};
+    uint8_t encoded[SDLP_TM_PRIMARY_HEADER_SIZE + 1 + SDLP_TM_FRAME_ERROR_CONTROL_SIZE];
     size_t encoded_size = 0;
 
     ASSERT_EQ_INT(SDLP_SUCCESS, sdlp_tm_create_frame(&frame, 0, 0, payload, 1));
@@ -912,10 +922,10 @@ static int test_tm_primary_header_all_max(void)
     sdlp_tm_frame_t frame;
     sdlp_tm_frame_t decoded;
     sdlp_tm_data_field_status_t *status = &frame.header.transfer_frame_data_field_status;
-    const uint8_t octets[TM_OCF_SIZE] = {0};
-    const uint8_t all_max[TM_PRIMARY_HEADER_SIZE] = {0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu};
-    uint8_t encoded[TM_PRIMARY_HEADER_SIZE + TM_SECONDARY_HEADER_ID_SIZE + 1 + 1 + TM_OCF_SIZE +
-                    TM_FRAME_ERROR_CONTROL_SIZE];
+    const uint8_t octets[SDLP_TM_OCF_SIZE] = {0};
+    const uint8_t all_max[SDLP_TM_PRIMARY_HEADER_SIZE] = {0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0xFFu};
+    uint8_t encoded[SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_SECONDARY_HEADER_ID_SIZE + 1 + 1 +
+                    SDLP_TM_OCF_SIZE + SDLP_TM_FRAME_ERROR_CONTROL_SIZE];
     size_t encoded_size = 0;
 
     /* Both optional fields are attached, which raises their flags; the rest is set by hand. */
@@ -956,7 +966,7 @@ static int test_tm_empty_data_field_roundtrip(void)
     sdlp_tm_frame_t frame;
     sdlp_tm_frame_t decoded;
     const uint8_t unused[1] = {0x00u};
-    uint8_t encoded[TM_PRIMARY_HEADER_SIZE + TM_FRAME_ERROR_CONTROL_SIZE];
+    uint8_t encoded[SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_FRAME_ERROR_CONTROL_SIZE];
     size_t encoded_size = 0;
 
     /* A Data Field of zero octets is the smallest length sdlp_tm_create_frame() accepts. */
@@ -975,7 +985,8 @@ static int test_tm_empty_data_field_roundtrip(void)
 
 static int test_tm_decode_short_inputs(void)
 {
-    static const uint8_t zeros[TM_PRIMARY_HEADER_SIZE + TM_FRAME_ERROR_CONTROL_SIZE] = {0};
+    static const uint8_t zeros[SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_FRAME_ERROR_CONTROL_SIZE] = {
+        0};
     sdlp_tm_frame_t decoded;
     uint8_t *exact;
     sdlp_status_t status;

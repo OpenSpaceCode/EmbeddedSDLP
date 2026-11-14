@@ -66,18 +66,18 @@ $(BIN_DIR)/%: $(EXAMPLES_DIR)/%.c $(EXAMPLE_HEADERS) $(PUBLIC_HEADERS) $(LIB) | 
 	$(CC) $(CFLAGS) $< $(LIB) -o $@ $(LDFLAGS)
 
 # Segment-header configuration: the library is built without it, so its sources are
-# compiled together with each example, all with TC_SEGMENT_HEADER_ENABLED.
+# compiled together with each example, all with SDLP_TC_SEGMENT_HEADER_ENABLED.
 $(SEGMENT_DIR)/%: $(EXAMPLES_DIR)/%.c $(EXAMPLE_HEADERS) $(PUBLIC_HEADERS) $(SRCS) | $(SEGMENT_DIR)
-	$(CC) $(CFLAGS) -DTC_SEGMENT_HEADER_ENABLED $< $(SRCS) -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) -DSDLP_TC_SEGMENT_HEADER_ENABLED $< $(SRCS) -o $@ $(LDFLAGS)
 
 # Default configuration: the tests link the library exactly as `make lib` builds it.
 $(TEST_BIN): $(TEST_SRCS) $(TEST_HEADERS) $(PUBLIC_HEADERS) $(LIB) | $(BIN_DIR)
 	$(CC) $(CFLAGS) $(TEST_SRCS) $(LIB) -o $@ $(LDFLAGS)
 
 # Segment-header configuration: the library is built without it, so the sources are
-# compiled together with the tests, all with TC_SEGMENT_HEADER_ENABLED.
+# compiled together with the tests, all with SDLP_TC_SEGMENT_HEADER_ENABLED.
 $(SEGMENT_TEST_BIN): $(SRCS) $(TEST_SRCS) $(TEST_HEADERS) $(PUBLIC_HEADERS) | $(SEGMENT_DIR)
-	$(CC) $(CFLAGS) -DTC_SEGMENT_HEADER_ENABLED $(SRCS) $(TEST_SRCS) -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) -DSDLP_TC_SEGMENT_HEADER_ENABLED $(SRCS) $(TEST_SRCS) -o $@ $(LDFLAGS)
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -132,5 +132,5 @@ sanitize:
 test: unit-tests
 	@echo "Running unit tests (default configuration)..."
 	@./$(TEST_BIN)
-	@echo "Running unit tests (TC_SEGMENT_HEADER_ENABLED)..."
+	@echo "Running unit tests (SDLP_TC_SEGMENT_HEADER_ENABLED)..."
 	@./$(SEGMENT_TEST_BIN)

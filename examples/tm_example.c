@@ -1,9 +1,14 @@
 /**
- * @file tm_example.c
- * @brief Worked example: build, encode, and decode a TM Transfer Frame.
+ * @file    tm_example.c
+ * @brief   Worked example: build, encode, and decode a TM Transfer Frame.
  *
  * Demonstrates a plain data frame, application-side FECF computation, and an
  * optional Operational Control Field.
+ *
+ * Copyright 2026 OpenSpaceCode contributors
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * OpenSpaceCode — https://github.com/OpenSpaceCode
  */
 
 #include "example_crc.h"
@@ -12,10 +17,14 @@
 #include <stdio.h>
 #include <string.h>
 
+/** @brief Number of leading frame octets shown in the hex dump. */
+#define EXAMPLE_HEX_DUMP_OCTETS 20u
+
 int main(void)
 {
     sdlp_tm_frame_t frame;
-    uint8_t buffer[1500];
+    uint8_t buffer[SDLP_TM_PRIMARY_HEADER_SIZE + SDLP_TM_MAX_DATA_SIZE + SDLP_TM_OCF_SIZE +
+                   SDLP_TM_FRAME_ERROR_CONTROL_SIZE];
     size_t encoded_size;
     sdlp_status_t result;
 
@@ -54,13 +63,14 @@ int main(void)
     /* The library leaves the Frame Error Control Field to the application.
      * Compute a CRC-16-CCITT over the encoded frame (excluding the trailing
      * 2-byte FECF) and write it into the FECF, mirroring CCSDS error control. */
-    uint16_t fecf = example_crc16(buffer, encoded_size - TM_FRAME_ERROR_CONTROL_SIZE);
-    buffer[encoded_size - 2] = (uint8_t)((fecf >> 8) & 0xFFu);
-    buffer[encoded_size - 1] = (uint8_t)(fecf & 0xFFu);
+    size_t fecf_offset = encoded_size - SDLP_TM_FRAME_ERROR_CONTROL_SIZE;
+    uint16_t fecf = example_crc16(buffer, fecf_offset);
+    buffer[fecf_offset] = (uint8_t)((fecf >> 8) & 0xFFu);
+    buffer[fecf_offset + 1] = (uint8_t)(fecf & 0xFFu);
 
     printf("Encoded frame size: %zu bytes\n", encoded_size);
     printf("Frame bytes: ");
-    for (size_t i = 0; i < encoded_size && i < 20; i++)
+    for (size_t i = 0; (i < encoded_size) && (i < EXAMPLE_HEX_DUMP_OCTETS); i++)
     {
         printf("%02X ", buffer[i]);
     }
@@ -83,7 +93,7 @@ int main(void)
     printf("Data: %.*s\n", (int)decoded_frame.data_length, decoded_frame.data);
 
     /* Verify the FECF the same way it was produced (application-side). */
-    uint16_t expected_fecf = example_crc16(buffer, encoded_size - TM_FRAME_ERROR_CONTROL_SIZE);
+    uint16_t expected_fecf = example_crc16(buffer, encoded_size - SDLP_TM_FRAME_ERROR_CONTROL_SIZE);
     printf("FECF: 0x%04X (%s)\n",
            decoded_frame.fecf,
            decoded_frame.fecf == expected_fecf ? "valid" : "invalid");
@@ -92,7 +102,7 @@ int main(void)
      * Its content is mission-specific (e.g. a CLCW); here it is opaque. Setting it
      * raises the OCF Flag; leaving it unset emits a frame with no OCF. */
     printf("\nEncoding the same frame with an Operational Control Field...\n");
-    const uint8_t clcw[4] = {0x00u, 0x00u, 0x00u, 0x00u};
+    const uint8_t clcw[SDLP_TM_OCF_SIZE] = {0};
     result = sdlp_tm_set_ocf(&frame, clcw);
     if (result != SDLP_SUCCESS)
     {
@@ -115,12 +125,12 @@ int main(void)
     }
 
     printf("Encoded frame size: %zu bytes\n", encoded_size);
-    printf("OCF Flag: %d, OCF: %02X %02X %02X %02X\n",
-           decoded_frame.header.ocf_flag,
-           decoded_frame.ocf[0],
-           decoded_frame.ocf[1],
-           decoded_frame.ocf[2],
-           decoded_frame.ocf[3]);
+    printf("OCF Flag: %d, OCF:", decoded_frame.header.ocf_flag);
+    for (size_t i = 0; i < SDLP_TM_OCF_SIZE; i++)
+    {
+        printf(" %02X", decoded_frame.ocf[i]);
+    }
+    printf("\n");
 
     printf("\n=== TM Frame Example Complete ===\n");
 

@@ -1,6 +1,11 @@
 /**
- * @file unit_tests.c
- * @brief Unit test entry point: runs each module's suite and reports the tally.
+ * @file    unit_tests.c
+ * @brief   Unit test entry point: runs each module's suite and reports the tally.
+ *
+ * Copyright 2026 OpenSpaceCode contributors
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * OpenSpaceCode — https://github.com/OpenSpaceCode
  */
 #include "test_runners.h"
 

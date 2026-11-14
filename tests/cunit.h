@@ -1,6 +1,14 @@
-/* Tiny C unit test helpers. Suitable for embedding in small projects.
- * Usage: include this header in a single C test file and implement test
- * functions returning 0 on success, non-zero on failure. Use RUN_TEST(fn).
+/**
+ * @file    cunit.h
+ * @brief   Tiny C unit test helpers
+ *
+ * Include this header in a test file and implement test functions returning 0 on
+ * success, non-zero on failure. Use RUN_TEST(fn).
+ *
+ * Copyright 2026 OpenSpaceCode contributors
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * OpenSpaceCode — https://github.com/OpenSpaceCode
  */
 #ifndef CUNIT_H
 #define CUNIT_H

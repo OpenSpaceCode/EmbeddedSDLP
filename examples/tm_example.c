@@ -1,9 +1,14 @@
 /**
- * @file tm_example.c
- * @brief Worked example: build, encode, and decode a TM Transfer Frame.
+ * @file    tm_example.c
+ * @brief   Worked example: build, encode, and decode a TM Transfer Frame.
  *
  * Demonstrates a plain data frame, application-side FECF computation, and an
  * optional Operational Control Field.
+ *
+ * Copyright 2026 OpenSpaceCode contributors
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * OpenSpaceCode — https://github.com/OpenSpaceCode
  */
 
 #include "example_crc.h"

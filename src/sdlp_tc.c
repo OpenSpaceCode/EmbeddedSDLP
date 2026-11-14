@@ -1,10 +1,15 @@
 /**
- * @file sdlp_tc.c
- * @brief TC Space Data Link Protocol frame handling (CCSDS 232.0-B-4).
+ * @file    sdlp_tc.c
+ * @brief   TC Space Data Link Protocol frame handling (CCSDS 232.0-B-4).
  *
  * Implements the API declared in sdlp_tc.h: create/encode/decode of TC Transfer
  * Frames, the AD/BD/BC frame-type selector, and the Unlock / Set V(R) control-
  * command builders.
+ *
+ * Copyright 2026 OpenSpaceCode contributors
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * OpenSpaceCode — https://github.com/OpenSpaceCode
  */
 #include "sdlp_tc.h"
 

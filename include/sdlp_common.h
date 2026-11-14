@@ -1,9 +1,14 @@
 /**
- * @file sdlp_common.h
- * @brief Shared definitions for the CCSDS Space Data Link Protocols.
+ * @file    sdlp_common.h
+ * @brief   Shared definitions for the CCSDS Space Data Link Protocols.
  *
  * Protocol version and the library-wide return codes used by the TM
  * (CCSDS 132.0-B-3) and TC (CCSDS 232.0-B-4) frame handlers.
+ *
+ * Copyright 2026 OpenSpaceCode contributors
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * OpenSpaceCode — https://github.com/OpenSpaceCode
  */
 
 #ifndef SDLP_COMMON_H

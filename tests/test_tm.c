@@ -1,6 +1,11 @@
 /**
- * @file test_tm.c
- * @brief Unit tests for the TM Space Data Link Protocol frame handler.
+ * @file    test_tm.c
+ * @brief   Unit tests for the TM Space Data Link Protocol frame handler.
+ *
+ * Copyright 2026 OpenSpaceCode contributors
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * OpenSpaceCode — https://github.com/OpenSpaceCode
  */
 #include "cunit.h"
 #include "sdlp_common.h"

@@ -1,10 +1,15 @@
 /**
- * @file sdlp_tm.c
- * @brief TM Space Data Link Protocol frame handling (CCSDS 132.0-B-3).
+ * @file    sdlp_tm.c
+ * @brief   TM Space Data Link Protocol frame handling (CCSDS 132.0-B-3).
  *
  * Implements the API declared in sdlp_tm.h: create/encode/decode of TM Transfer
  * Frames, the Data Field Status codec, the Secondary Header and OCF setters, and
  * the per-Master/Virtual-Channel frame counters.
+ *
+ * Copyright 2026 OpenSpaceCode contributors
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * OpenSpaceCode — https://github.com/OpenSpaceCode
  */
 #include "sdlp_tm.h"
 

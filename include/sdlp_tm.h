@@ -1,12 +1,17 @@
 /**
- * @file sdlp_tm.h
- * @brief CCSDS TM Space Data Link Protocol frame handling (CCSDS 132.0-B-3).
+ * @file    sdlp_tm.h
+ * @brief   CCSDS TM Space Data Link Protocol frame handling (CCSDS 132.0-B-3).
  *
  * Builds, encodes, and decodes TM Transfer Frames: the 6-octet primary header,
  * the optional Transfer Frame Secondary Header, the Data Field, the optional
  * Operational Control Field, and the 2-octet Frame Error Control Field. Data
  * Field, Secondary Header, OCF, and FECF content are treated as opaque,
  * application-owned octet sequences.
+ *
+ * Copyright 2026 OpenSpaceCode contributors
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * OpenSpaceCode — https://github.com/OpenSpaceCode
  */
 
 #ifndef SDLP_TM_H

@@ -1,12 +1,17 @@
 /**
- * @file sdlp_tc.h
- * @brief CCSDS TC Space Data Link Protocol frame handling (CCSDS 232.0-B-4).
+ * @file    sdlp_tc.h
+ * @brief   CCSDS TC Space Data Link Protocol frame handling (CCSDS 232.0-B-4).
  *
  * Builds, encodes, and decodes TC Transfer Frames: the 5-octet primary header,
  * an optional Segment Header, the Data Field, and the 2-octet Frame Error Control
  * Field. Supports the AD/BD/BC frame types and the Unlock / Set V(R) control
  * commands. The Data Field and FECF content are treated as opaque, application-
  * owned octet sequences.
+ *
+ * Copyright 2026 OpenSpaceCode contributors
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * OpenSpaceCode — https://github.com/OpenSpaceCode
  */
 
 #ifndef SDLP_TC_H

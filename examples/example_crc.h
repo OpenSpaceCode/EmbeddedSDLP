@@ -1,11 +1,16 @@
 /**
- * @file example_crc.h
- * @brief CRC-16-CCITT helper used only by the examples.
+ * @file    example_crc.h
+ * @brief   CRC-16-CCITT helper used only by the examples.
  *
  * The SDLP library does not compute or validate the Frame Error Control Field;
  * error control is the application's responsibility. This helper lets the
  * examples populate and verify the FECF, and is intentionally kept out of the
  * library's public API.
+ *
+ * Copyright 2026 OpenSpaceCode contributors
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * OpenSpaceCode — https://github.com/OpenSpaceCode
  */
 
 #ifndef EXAMPLE_CRC_H

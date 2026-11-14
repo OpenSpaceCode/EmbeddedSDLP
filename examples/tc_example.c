@@ -1,9 +1,14 @@
 /**
- * @file tc_example.c
- * @brief Worked example: build, encode, and decode TC Transfer Frames.
+ * @file    tc_example.c
+ * @brief   Worked example: build, encode, and decode TC Transfer Frames.
  *
  * Demonstrates a Type-AD data frame with application-side FECF computation and a
  * Type-BC Unlock control-command frame.
+ *
+ * Copyright 2026 OpenSpaceCode contributors
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * OpenSpaceCode — https://github.com/OpenSpaceCode
  */
 
 #include "example_crc.h"

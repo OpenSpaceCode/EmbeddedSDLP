@@ -55,4 +55,4 @@ static inline uint16_t example_crc16(const uint8_t *data, size_t length)
     return crc;
 }
 
-#endif
+#endif /* EXAMPLE_CRC_H */
